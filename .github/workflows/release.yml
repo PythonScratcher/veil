@@ -1,0 +1,43 @@
+name: Release
+# Push a tag like v1.5.1 (it must equal "v" + the VERSION file) and this builds everything and
+# publishes a GitHub Release. Can also be started by hand from the Actions tab.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check tag matches VERSION
+        run: |
+          V=$(tr -d '[:space:]' < VERSION)
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "v$V" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match VERSION $V"; exit 1; fi
+          echo "VER=$V" >> "$GITHUB_ENV"
+      - name: Build
+        run: |
+          pip install --quiet pillow
+          mkdir -p dist
+          ./build-windows.sh
+          ./build-macos.sh
+          for a in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$a go build -ldflags "-s -w" -o dist/veil-server-linux-$a ./cmd/veil-server
+          done
+          (cd dist && zip -q Veil-Windows.zip veil.exe veil-cli.exe wintun.dll Veil-Setup.exe)
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${VER}"
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" --target "$GITHUB_SHA" --title "Veil ${VER}" --generate-notes \
+            dist/Veil-Setup.exe dist/Veil-Windows.zip \
+            dist/Veil-macOS-arm64.zip dist/Veil-macOS-intel.zip \
+            dist/veil-server-linux-amd64 dist/veil-server-linux-arm64
