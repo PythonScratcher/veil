@@ -56,8 +56,11 @@ PY
   echo "--- DNS during"; dnsdump | tee "dns_during_$car.txt"
   grep -q "1.1.1.1" "dns_during_$car.txt" && ok "$car: DNS points at tunnel resolvers" || bad "$car: DNS not changed"
   # a packet to a private address must enter the tunnel and be refused by the server (path: utun -> client -> carrier -> server)
-  curl -s -o /dev/null --max-time 5 http://10.99.99.99/
-  for i in $(seq 1 20); do grep -q "tcp 10.99.99.99:80" "client_$car.log" && break; sleep 1; done
+  for try in 1 2 3; do
+    curl -s -o /dev/null --max-time 5 http://10.99.99.99/
+    for i in $(seq 1 8); do grep -q "tcp 10.99.99.99:80" "client_$car.log" && break 2; sleep 1; done
+    echo "probe attempt $try: nothing yet"
+  done
   grep -q "tcp 10.99.99.99:80" "client_$car.log" && ok "$car: traffic entered the tunnel and reached the server" || { bad "$car: no tunnel traffic seen"; tail -20 "client_$car.log"; }
   echo "--- client log"; tail -5 "client_$car.log"
   # clean disconnect
