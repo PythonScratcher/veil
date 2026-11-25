@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Veil</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
+<link rel="stylesheet" href="app.css"></head>
+<body><div class="app">
+  <header>
+    <div class="brand">Veil</div>
+    <div class="pill" id="pill"><i></i><span id="pillText">Disconnected</span></div>
+  </header>
+
+  <main id="main" hidden>
+    <section class="hero">
+      <button class="power" id="power" aria-label="Connect">
+        <svg viewBox="0 0 64 64" width="58" height="58" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"><path d="M32 8v22"/><path d="M19 17a22 22 0 1 0 26 0"/></svg>
+      </button>
+      <div class="big" id="big">Disconnected</div>
+      <div class="sub" id="sub">Tap to connect</div>
+      <div class="err" id="err" hidden></div>
+    </section>
+
+    <div class="note warn" id="adminNote" hidden>Veil needs Administrator rights to create the VPN adapter (on Mac: your login password). <button class="link" id="elevate">Restart as administrator</button></div>
+
+    <section class="srvrow">
+      <label for="srv">Server</label>
+      <select id="srv"></select>
+      <button class="btn" id="addSrv" title="Add another server">＋ Add</button>
+    </section>
+
+    <section class="stats">
+      <div><span class="k">Download</span><span class="v" id="sDown">0 B/s</span><span class="t" id="tDown">0 B</span></div>
+      <div><span class="k">Upload</span><span class="v" id="sUp">0 B/s</span><span class="t" id="tUp">0 B</span></div>
+      <div><span class="k">Time</span><span class="v" id="sTime">–</span><span class="t" id="sServer"></span></div>
+    </section>
+
+    <section class="card limits" id="limitsCard" hidden>
+      <div class="limitrow" id="lExpiryRow" hidden>
+        <span class="k">Expires</span><span class="v" id="lExpiry">–</span>
+      </div>
+      <div class="limitrow" id="lDataRow" hidden>
+        <span class="k">Data used</span><span class="v" id="lData">–</span>
+        <div class="bar"><div class="barfill" id="lDataBar"></div></div>
+      </div>
+      <div class="limitrow" id="lRateRow" hidden>
+        <span class="k">Speed limit</span><span class="v" id="lRate">–</span>
+      </div>
+    </section>
+
+    <details class="card" id="adv">
+      <summary>Settings</summary>
+      <div class="grid">
+        <label>Connection method
+          <select id="fCarrier"><option value="tls">HTTPS (default)</option><option value="ws">Plain HTTP / WebSocket (port 80)</option><option value="poll">Plain HTTP / no upgrade (port 80, slower, works through proxies)</option><option value="quic">QUIC / HTTP3 (UDP 443, fast, often blocked)</option></select></label>
+        <label>Transport
+          <select id="fTransport"><option value="stream">stream (fastest)</option><option value="split">split (CDN-friendly)</option></select></label>
+        <label>ClientHello fragmentation
+          <select id="fFrag"><option value="both">both (default)</option><option value="record">TLS records</option><option value="tcp">TCP segments</option><option value="none">off</option></select></label>
+        <label>Rotate connection (minutes)
+          <input id="fRotate" type="number" min="-1" max="1440"></label>
+        <label>DNS (inside the tunnel)
+          <input id="fDNS" placeholder="1.1.1.1"></label>
+      </div>
+      <label class="sw"><input type="checkbox" id="fCover"> Cover traffic (looks like an update client)</label>
+      <label class="sw"><input type="checkbox" id="fNetBounce"> Instant app switchover (experimental - briefly flaps network adapters so Chrome etc. don't need restarting; off by default, has caused network trouble on at least one machine)</label>
+      <div class="hint" id="applyHint">Changes apply the next time you connect.</div>
+      <button class="btn" id="save">Save settings</button>
+    </details>
+
+    <details class="card" id="keyCard">
+      <summary>This server</summary>
+      <div class="kv"><span>Address</span><b id="kServer"></b></div>
+      <div class="kv"><span>Certificate</span><b id="kCert"></b></div>
+      <div class="inline"><input id="nameIn" maxlength="40" placeholder="Name"><button class="btn" id="rename">Rename</button></div>
+      <div class="row2"><button class="btn" id="replace">Add another server…</button><button class="btn danger" id="remove">Remove this server</button></div>
+    </details>
+
+    <details class="card" id="logCard">
+      <summary>Log</summary>
+      <pre id="log"></pre>
+    </details>
+  </main>
+
+  <main id="onboard" hidden>
+    <section class="hero">
+      <div class="big" id="onBig">Add your key</div>
+      <div class="sub" id="onSub">Paste the contents of <code>client.json</code> from your server, or choose the file.</div>
+    </section>
+    <input id="keyName" class="namein" maxlength="40" placeholder="Name (optional, e.g. Germany)">
+    <textarea id="keyText" spellcheck="false" placeholder='{ "server": "...", "path": "...", ... }'></textarea>
+    <div class="row2">
+      <button class="btn" id="pick">Choose file…</button>
+      <button class="btn primary" id="doImport">Add server</button>
+      <button class="btn" id="cancelImport" hidden>Cancel</button>
+    </div>
+    <div class="err" id="impErr" hidden></div>
+    <input type="file" id="file" accept=".json,application/json,text/plain" hidden>
+  </main>
+
+  <footer><span id="ver">Closing this window keeps Veil running in the background</span><button class="link" id="quit">Quit Veil</button></footer>
+</div><div class="toast" id="toast" hidden></div>
+<script src="app.js"></script></body></html>

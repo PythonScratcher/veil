@@ -1,0 +1,33 @@
+name: macOS test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build (native)
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          go build -o "$RUNNER_TEMP/bin/veil-server" ./cmd/veil-server
+          go build -ldflags "-X main.appVersion=ci" -o "$RUNNER_TEMP/bin/veil-client" ./cmd/veil-client
+      - name: Tunnel, routes, DNS, cleanup, menu bar
+        run: bash tests/macos-e2e.sh "$RUNNER_TEMP/bin"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/veil-e2e/*.log
+            ${{ runner.temp }}/veil-e2e/*.png
+            ${{ runner.temp }}/veil-e2e/*.txt

@@ -1,0 +1,9 @@
+dist/
+android-out/
+build/
+.gradle/
+local.properties
+*.apk
+*.aar
+*.exe
+*.zip
