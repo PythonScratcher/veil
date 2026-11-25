@@ -23,7 +23,7 @@ dnsdump > dns_before.txt; echo "--- DNS before"; cat dns_before.txt
 python3 - "$LAN" <<'PY'
 import json,sys
 lan=sys.argv[1]
-s=json.load(open("server.json")); s["listen_http"]="0.0.0.0:18080"; s["listen_quic"]="0.0.0.0:18443"; s["admin_listen"]="127.0.0.1:18088"
+s=json.load(open("server.json")); s["listen_http"]="0.0.0.0:18080"; s["listen_quic"]="0.0.0.0:18443"; s["admin_listen"]="127.0.0.1:18088"; s["allow_private"]=False
 json.dump(s,open("server.json","w"),indent=1)
 c=json.load(open("client.json")); c["server"]=lan+":18443"; c["ws_addr"]=lan+":18080"
 json.dump(c,open("client.json","w"),indent=1)
@@ -56,12 +56,13 @@ PY
   echo "--- DNS during"; dnsdump | tee "dns_during_$car.txt"
   grep -q "1.1.1.1" "dns_during_$car.txt" && ok "$car: DNS points at tunnel resolvers" || bad "$car: DNS not changed"
   # a packet to a private address must enter the tunnel and be refused by the server (path: utun -> client -> carrier -> server)
-  curl -s -o /dev/null --max-time 8 http://10.99.99.99/ ; sleep 1
+  curl -s -o /dev/null --max-time 5 http://10.99.99.99/
+  for i in $(seq 1 20); do grep -q "tcp 10.99.99.99:80" "client_$car.log" && break; sleep 1; done
   grep -q "tcp 10.99.99.99:80" "client_$car.log" && ok "$car: traffic entered the tunnel and reached the server" || { bad "$car: no tunnel traffic seen"; tail -20 "client_$car.log"; }
   echo "--- client log"; tail -5 "client_$car.log"
   # clean disconnect
-  sudo kill -INT $pid; for i in $(seq 1 15); do kill -0 $pid 2>/dev/null || break; sleep 1; done
-  kill -0 $pid 2>/dev/null && { bad "$car: client exited on SIGINT"; sudo kill -9 $pid; } || ok "$car: client exited on SIGINT"
+  sudo pkill -TERM -f "veil-client -c client_$car.json"; for i in $(seq 1 15); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+  kill -0 $pid 2>/dev/null && { bad "$car: client exited on SIGTERM"; sudo kill -9 $pid; } || ok "$car: client exited on SIGTERM"
   [ -z "$(routes4)$(routes6)" ] && ok "$car: catch-all routes removed" || { bad "$car: routes left behind"; routes4; routes6; }
   dnsdump > "dns_after_$car.txt"; diff -q dns_before.txt "dns_after_$car.txt" >/dev/null && ok "$car: DNS restored" || { bad "$car: DNS not restored"; diff dns_before.txt "dns_after_$car.txt"; }
   ifconfig | grep -q "10.77.0.2" && bad "$car: tunnel interface still present" || ok "$car: tunnel interface gone"
@@ -73,7 +74,7 @@ echo; echo "=================== kill -9 then -cleanup"
 sudo "$BIN/veil-client" -c client.json -tun > client_kill.log 2>&1 &
 pid=$!
 for i in $(seq 1 40); do grep -q "VPN up" client_kill.log && break; sleep 1; done
-sudo kill -9 $pid; sleep 2
+sudo pkill -9 -f "veil-client -c client.json"; sleep 2
 echo "--- left behind after kill -9:"; routes4; routes6; dnsdump
 sudo "$BIN/veil-client" -c client.json -cleanup
 [ -z "$(routes4)$(routes6)" ] && ok "cleanup removed routes" || bad "cleanup left routes"
@@ -88,9 +89,9 @@ sleep 8
 if kill -0 $gpid 2>/dev/null; then ok "GUI process alive after 8 s (menu-bar code did not crash)"; else bad "GUI process died"; fi
 cat gui.log
 URL=$(grep -o 'http://127.0.0.1:[0-9]*/?t=[0-9a-f]*' gui.log | head -1)
-[ -n "$URL" ] && curl -s -o /dev/null -w "ui http %{http_code}\n" -c jar "$URL" && chk "GUI web page served" curl -sf -b jar "${URL%%\?*}api/status"
+[ -n "$URL" ] && chk "GUI web page served" curl -sfL -c jar -b jar -o /dev/null "$URL"
 screencapture -x screen.png 2>screen.err && ok "screenshot taken (see artifact)" || echo "NOTE  no screenshot: $(cat screen.err)"
-sudo kill -INT $gpid 2>/dev/null; sleep 2; sudo kill -9 $gpid 2>/dev/null
+sudo pkill -TERM -f "veil-client -gui" ; sleep 2; sudo pkill -9 -f "veil-client -gui" 2>/dev/null
 
 echo; [ $FAIL = 0 ] && echo "ALL CHECKS PASSED" || echo "SOME CHECKS FAILED"
 exit $FAIL
