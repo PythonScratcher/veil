@@ -23,7 +23,7 @@ jobs:
           echo "VER=$V" >> "$GITHUB_ENV"
       - name: Build
         run: |
-          pip install --quiet pillow
+          sudo apt-get install -y -qq python3-pil
           mkdir -p dist
           ./build-windows.sh
           ./build-macos.sh
