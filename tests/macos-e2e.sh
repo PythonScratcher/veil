@@ -19,7 +19,7 @@ dnsdump() { networksetup -listallnetworkservices | tail -n +2 | grep -v '^\*' | 
 dnsdump > dns_before.txt; echo "--- DNS before"; cat dns_before.txt
 
 # ---- server
-"$BIN/veil-server" init --local --listen 0.0.0.0:18443 --user ci > init.log 2>&1 || { cat init.log; exit 1; }
+"$BIN/veil-server" init --local --domain "$LAN" --listen 0.0.0.0:18443 --user ci > init.log 2>&1 || { cat init.log; exit 1; }
 python3 - "$LAN" <<'PY'
 import json,sys
 lan=sys.argv[1]
