@@ -135,6 +135,7 @@ func (e *Engine) run(ctx context.Context, cancel context.CancelFunc, cfg Config,
 		return fmt.Errorf("cannot reach server: %w", err)
 	}
 	go t.Supervise(ctx)
+	go t.WatchLimits(ctx)
 	log.Printf("connected to %s (%s transport, frag=%s)", cfg.Server, t.mode, t.frag)
 
 	e.mu.Lock()

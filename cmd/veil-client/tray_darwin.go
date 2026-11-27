@@ -22,7 +22,6 @@ import (
 // client still cross-compiles from Linux). Everything AppKit-related runs on the main thread.
 func init() { runtime.LockOSThread() }
 
-
 func nsString(s string) objc.ID {
 	b := append([]byte(s), 0)
 	r := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), &b[0])

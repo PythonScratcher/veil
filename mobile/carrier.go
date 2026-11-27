@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -695,5 +696,51 @@ func (t *Transport) Supervise(ctx context.Context) {
 			continue
 		}
 		backoff = time.Second
+	}
+}
+
+// accountHost is a reserved destination: instead of dialing anywhere, the server answers a stream
+// opened to it with the key's current limits and usage as JSON.
+const accountHost = "veil.account"
+
+// RefreshLimits asks the server for this key's current limits and usage (expiry, data cap, data
+// used, speed cap) and stores them. Servers older than 1.6 simply fail the stream; callers ignore that.
+func (t *Transport) RefreshLimits(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	st, err := t.Dial(ctx, proto.Target{Net: proto.NetTCP, Host: accountHost, Port: 1})
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	timer := time.AfterFunc(10*time.Second, func() { st.Close() })
+	defer timer.Stop()
+	b, _ := io.ReadAll(io.LimitReader(st, 4096))
+	var l proto.AccountLimits
+	if err := json.Unmarshal(b, &l); err != nil {
+		return errors.New("no limits from server")
+	}
+	old := t.limits.Load()
+	t.limits.Store(&l)
+	if old != nil && (old.ExpiresAt != l.ExpiresAt || old.DataCap != l.DataCap || old.RateMbps != l.RateMbps) {
+		log.Printf("limits changed by the server: expires=%d cap=%d speed=%.1f Mbps", l.ExpiresAt, l.DataCap, l.RateMbps)
+	}
+	return nil
+}
+
+// WatchLimits re-checks the key's limits about once a minute for as long as ctx lives, so the
+// time/data/speed shown to the user never go stale and an admin's change is picked up live.
+func (t *Transport) WatchLimits(ctx context.Context) {
+	wait := 3 * time.Second
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		}
+		if err := t.RefreshLimits(ctx); err != nil {
+			log.Printf("limits refresh: %v", err)
+		}
+		wait = 45*time.Second + time.Duration(mrand.Int64N(int64(30*time.Second)))
 	}
 }

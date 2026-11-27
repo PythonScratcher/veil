@@ -101,6 +101,8 @@ func main() {
 	wc()
 	log.Printf("connected to %s (Chrome TLS/h2, %s transport, ClientHello frag=%s)", cfg.Server, t.mode, t.frag)
 
+	go t.WatchLimits(ctx)
+
 	if cfg.Socks != "" {
 		if err := startSOCKS(ctx, t, cfg.Socks); err != nil {
 			log.Fatal(err)

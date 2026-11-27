@@ -2,7 +2,6 @@
 # Builds dist/veil.exe, dist/veil-cli.exe and the installer dist/Veil-Setup.exe
 set -euo pipefail
 cd "$(dirname "$0")"
-mkdir -p dist; cp -n assets/wintun.dll dist/wintun.dll
 VER=$(tr -d '[:space:]' < VERSION)
 export GOOS=windows GOARCH=amd64 CGO_ENABLED=0
 go build -ldflags "-s -w -H=windowsgui -X main.appVersion=$VER" -o dist/veil.exe ./cmd/veil-client

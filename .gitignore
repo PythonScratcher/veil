@@ -1,4 +1,5 @@
 dist/
+!assets/debug.keystore
 android-out/
 build/
 .gradle/

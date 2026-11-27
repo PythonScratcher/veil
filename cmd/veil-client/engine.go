@@ -38,17 +38,18 @@ func (r *logRing) Snapshot() []string {
 }
 
 type Engine struct {
-	mu      sync.Mutex
-	state   string // disconnected | connecting | connected | error
-	errMsg  string
-	mode    string
-	since   time.Time
-	t       *Transport
-	cancel  context.CancelFunc
-	done    chan struct{}
-	proxy   string // system proxy address currently applied, if any
-	stateF  string // sys proxy restore file
-	acctErr string // set by an account-issue callback; takes priority when the run exits
+	mu          sync.Mutex
+	state       string // disconnected | connecting | connected | error
+	errMsg      string
+	mode        string
+	since       time.Time
+	t           *Transport
+	cancel      context.CancelFunc
+	done        chan struct{}
+	proxy       string             // system proxy address currently applied, if any
+	stateF      string             // sys proxy restore file
+	acctErr     string             // set by an account-issue callback; takes priority when the run exits
+	watchCancel context.CancelFunc // stops the "is the key usable again?" re-checker
 }
 
 func NewEngine(stateFile string) *Engine {
@@ -113,6 +114,10 @@ func (e *Engine) Start(cfg Config, mode string) error {
 		e.mu.Unlock()
 		return errors.New("already connected")
 	}
+	if e.watchCancel != nil {
+		e.watchCancel()
+		e.watchCancel = nil
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancel, e.done = cancel, make(chan struct{})
 	e.state, e.errMsg, e.mode, e.since, e.t = "connecting", "", mode, time.Now(), nil
@@ -129,9 +134,12 @@ func (e *Engine) Start(cfg Config, mode string) error {
 		}
 		switch {
 		case e.acctErr != "":
-			e.state, e.errMsg = "error", e.acctErr
-			log.Printf("stopped: %s", e.acctErr)
+			e.state, e.errMsg = "error", e.acctErr+" - checking again every 2 minutes"
+			log.Printf("stopped: %s (will re-check every 2 minutes)", e.acctErr)
 			e.acctErr = ""
+			wctx, wc := context.WithCancel(context.Background())
+			e.watchCancel = wc
+			go e.resumeWatch(wctx, cfg, mode)
 		case err != nil && !errors.Is(err, context.Canceled):
 			e.state, e.errMsg = "error", err.Error()
 			log.Printf("stopped: %v", err)
@@ -182,6 +190,7 @@ func (e *Engine) run(ctx context.Context, cancel context.CancelFunc, cfg Config,
 		return fmt.Errorf("cannot reach server: %w", err)
 	}
 	go t.Supervise(ctx)
+	go t.WatchLimits(ctx)
 	log.Printf("connected to %s (%s transport, frag=%s, mode=%s)", cfg.Server, t.mode, t.frag, mode)
 
 	socks, httpA := cfg.Socks, cfg.HTTP
@@ -223,9 +232,56 @@ func (e *Engine) run(ctx context.Context, cancel context.CancelFunc, cfg Config,
 	return ctx.Err()
 }
 
+var resumeEvery = 2 * time.Minute
+
+// resumeWatch runs after the server refused this key (disabled, expired, data cap reached). It
+// tries a handshake every 2 minutes; as soon as the server accepts the key again (the admin
+// extended it, raised the cap or re-enabled it) the connection is restarted automatically.
+func (e *Engine) resumeWatch(ctx context.Context, cfg Config, mode string) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(resumeEvery):
+		}
+		if e.probeAccount(ctx, cfg) {
+			log.Printf("the server accepts this key again - reconnecting")
+			e.Start(cfg, mode)
+			return
+		}
+	}
+}
+
+// probeAccount does one handshake and reports whether the server accepted the key.
+func (e *Engine) probeAccount(ctx context.Context, cfg Config) bool {
+	pub, err := base64.StdEncoding.DecodeString(cfg.ServerPub)
+	if err != nil || len(pub) != 32 {
+		return false
+	}
+	psk, err := base64.StdEncoding.DecodeString(cfg.PSK)
+	if err != nil {
+		return false
+	}
+	t, err := NewTransport(&cfg, pub, psk)
+	if err != nil {
+		return false
+	}
+	defer t.Close()
+	cctx, cc := context.WithTimeout(ctx, 30*time.Second)
+	defer cc()
+	return t.Start(cctx) == nil
+}
+
 // Stop begins disconnecting (state "disconnecting" is visible at once) and waits for teardown.
 func (e *Engine) Stop() {
 	e.mu.Lock()
+	if e.watchCancel != nil { // user chose to disconnect: stop re-checking the key
+		e.watchCancel()
+		e.watchCancel = nil
+		if e.state == "error" {
+			e.state, e.errMsg = "disconnected", ""
+		}
+	}
 	c, d := e.cancel, e.done
 	if e.state == "connecting" || e.state == "connected" {
 		e.state = "disconnecting"

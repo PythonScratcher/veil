@@ -8,7 +8,37 @@ on:
 permissions:
   contents: write
 jobs:
+  android:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build APK
+        run: |
+          # fixed signing key so new APKs install over old ones
+          mkdir -p ~/.android && cp assets/debug.keystore ~/.android/debug.keystore
+          go install golang.org/x/mobile/cmd/gomobile golang.org/x/mobile/cmd/gobind
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          gomobile init
+          NDK=$(ls -d "$ANDROID_HOME"/ndk/* | sort -V | tail -1)
+          mkdir -p cmd/veil-android/app/libs
+          ANDROID_NDK_HOME="$NDK" gomobile bind -target android -androidapi 24 -ldflags "-s -w" -o cmd/veil-android/app/libs/veil.aar ./mobile
+          cd cmd/veil-android && gradle --no-daemon -q assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/Veil.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: Veil.apk
   release:
+    needs: android
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +61,11 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH=$a go build -ldflags "-s -w" -o dist/veil-server-linux-$a ./cmd/veil-server
           done
           (cd dist && zip -q Veil-Windows.zip veil.exe veil-cli.exe wintun.dll Veil-Setup.exe)
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: apk
+          path: dist
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,4 +75,4 @@ jobs:
           gh release create "$TAG" --target "$GITHUB_SHA" --title "Veil ${VER}" --generate-notes \
             dist/Veil-Setup.exe dist/Veil-Windows.zip \
             dist/Veil-macOS-arm64.zip dist/Veil-macOS-intel.zip \
-            dist/veil-server-linux-amd64 dist/veil-server-linux-arm64
+            dist/veil-server-linux-amd64 dist/veil-server-linux-arm64 $(ls dist/Veil.apk 2>/dev/null)

@@ -188,6 +188,16 @@ func (s *server) muxStream(ctx context.Context, a *Account, st *proto.MuxStream,
 		st.Accept(code)
 		return
 	}
+	if t.Host == "veil.account" { // reserved: report this key's current limits and usage
+		rec := a.snapshot()
+		b, _ := json.Marshal(proto.AccountLimits{ExpiresAt: rec.ExpiresAt, DataCap: rec.DataCap,
+			UsedUp: rec.UsedUp, UsedDown: rec.UsedDown, RateMbps: rec.RateMbps})
+		if st.Accept(proto.StatusOK) == nil {
+			st.Write(b)
+		}
+		st.Close()
+		return
+	}
 	dst := t.Addr()
 	if dialHook != nil {
 		dst = dialHook(dst)
