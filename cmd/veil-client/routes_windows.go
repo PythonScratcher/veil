@@ -50,16 +50,16 @@ func configureRoutes(ifname string, cfg *Config) (func(), error) {
 	removeDNSLeakRules() // stale rules from a previous crashed run
 	steps := []string{
 		fmt.Sprintf(`New-NetRoute -DestinationPrefix %s/32 -InterfaceIndex %s -NextHop %s -RouteMetric 1 -PolicyStore ActiveStore`, srv, f[1], f[0]),
-		fmt.Sprintf(`New-NetIPAddress -InterfaceAlias '%s' -IPAddress 10.77.0.2 -PrefixLength 24 | Out-Null`, ifname),
-		fmt.Sprintf(`New-NetIPAddress -InterfaceAlias '%s' -IPAddress fd77::2 -PrefixLength 64 | Out-Null`, ifname),
+		fmt.Sprintf(`New-NetIPAddress -InterfaceAlias '%s' -IPAddress 10.77.0.2 -PrefixLength 24 -PolicyStore ActiveStore | Out-Null`, ifname),
+		fmt.Sprintf(`New-NetIPAddress -InterfaceAlias '%s' -IPAddress fd77::2 -PrefixLength 64 -PolicyStore ActiveStore | Out-Null`, ifname),
 		fmt.Sprintf(`Set-NetIPInterface -InterfaceAlias '%s' -InterfaceMetric 1`, ifname),
 		// catch-all routes go in right away: the slower steps below must not leave a window
 		// where traffic still leaves through the real adapter
-		fmt.Sprintf(`New-NetRoute -DestinationPrefix 0.0.0.0/1 -InterfaceAlias '%s' -NextHop 0.0.0.0 -RouteMetric 1 | Out-Null`, ifname),
-		fmt.Sprintf(`New-NetRoute -DestinationPrefix 128.0.0.0/1 -InterfaceAlias '%s' -NextHop 0.0.0.0 -RouteMetric 1 | Out-Null`, ifname),
+		fmt.Sprintf(`New-NetRoute -DestinationPrefix 0.0.0.0/1 -InterfaceAlias '%s' -NextHop 0.0.0.0 -RouteMetric 1 -PolicyStore ActiveStore | Out-Null`, ifname),
+		fmt.Sprintf(`New-NetRoute -DestinationPrefix 128.0.0.0/1 -InterfaceAlias '%s' -NextHop 0.0.0.0 -RouteMetric 1 -PolicyStore ActiveStore | Out-Null`, ifname),
 		// IPv6 is captured too, so a native v6 path can't leak around the tunnel.
-		fmt.Sprintf(`New-NetRoute -DestinationPrefix ::/1 -InterfaceAlias '%s' -NextHop :: -RouteMetric 1 | Out-Null`, ifname),
-		fmt.Sprintf(`New-NetRoute -DestinationPrefix 8000::/1 -InterfaceAlias '%s' -NextHop :: -RouteMetric 1 | Out-Null`, ifname),
+		fmt.Sprintf(`New-NetRoute -DestinationPrefix ::/1 -InterfaceAlias '%s' -NextHop :: -RouteMetric 1 -PolicyStore ActiveStore | Out-Null`, ifname),
+		fmt.Sprintf(`New-NetRoute -DestinationPrefix 8000::/1 -InterfaceAlias '%s' -NextHop :: -RouteMetric 1 -PolicyStore ActiveStore | Out-Null`, ifname),
 		fmt.Sprintf(`Set-DnsClientServerAddress -InterfaceAlias '%s' -ServerAddresses %s`, ifname, dns),
 		// Windows asks the DNS servers of EVERY adapter in parallel ("smart multi-homed name
 		// resolution"), and LAN resolvers are on-link so they bypass the tunnel routes. Block
@@ -122,6 +122,10 @@ func cleanupStale(cfg *Config) {
 	removeDNSLeakRules()
 	removeOverrideRoutes()
 	host, _, _ := net.SplitHostPort(cfg.Server)
+	if host == "" {
+		ps(`Clear-DnsClientCache`)
+		return
+	}
 	if cfg.ConnectIP != "" {
 		host = cfg.ConnectIP
 	}

@@ -43,6 +43,10 @@ Keys and usage live in `users.json` (mode 0600, saved every 10 s and on shutdown
 
 `Veil-macOS-arm64.zip` (Apple Silicon) or `Veil-macOS-intel.zip` (Intel). Unzip, drag `Veil.app` to Applications. First launch: right-click > Open (or `xattr -dr com.apple.quarantine /Applications/Veil.app`). Veil asks for your Mac login password once, to create the VPN adapter, then opens its window in your browser. Same GUI, keys and connection methods as Windows. Menu-bar icon (V, filled when connected) with Connect/Disconnect, Open Veil and Quit Veil. Routing uses four catch-all routes (IPv4 and IPv6) and DNS is set via `networksetup`, restored on disconnect; `-cleanup` undoes leftovers after a crash. Built on Linux, not yet run on a real Mac.
 
+## If Veil crashes, freezes or is updated while connected
+
+Veil changes system-wide settings while connected (routes, DNS-leak firewall rules, DNS). To make sure a dead session can never leave your internet broken: a small watcher process undoes all of it the moment Veil dies, is killed, or stops responding for 45 s (it kills the frozen copy first); Veil also cleans up on every start; the Windows installer cleans up before replacing files and registers a boot-time cleanup task; routes are no longer saved across reboots; and the window has a "Fix my internet" link that does the cleanup by hand. From a terminal: `veil.exe -cleanup` (Administrator).
+
 ## Windows app (GUI + tray)
 
 Double-click `veil.exe` (keep `wintun.dll` next to it). Windows asks for Administrator once at launch - needed to create the VPN adapter.

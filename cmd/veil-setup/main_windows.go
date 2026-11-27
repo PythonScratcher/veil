@@ -126,6 +126,18 @@ func main() {
 	}
 }
 
+const bootTask = "Veil network cleanup"
+
+// cleanNetwork removes the firewall rules and catch-all routes a Veil session that died while
+// connected (crash, kill, update) can leave behind. They would otherwise block or black-hole traffic.
+func cleanNetwork() {
+	ps(`Remove-NetFirewallRule -DisplayName 'Veil DNS guard*' -ErrorAction SilentlyContinue`)
+	ps(`Remove-NetFirewallRule -DisplayName 'VeilCat DNS guard*' -ErrorAction SilentlyContinue`)
+	for _, p := range []string{"0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1"} {
+		ps(`Remove-NetRoute -DestinationPrefix ` + p + ` -Confirm:$false -ErrorAction SilentlyContinue`)
+	}
+}
+
 func doInstall(silent bool) error {
 	dir := installDir()
 	autostart := false
@@ -138,6 +150,7 @@ func doInstall(silent bool) error {
 	// stop a running copy so files can be replaced
 	quiet("taskkill", "/F", "/IM", "veil.exe")
 	time.Sleep(700 * time.Millisecond)
+	cleanNetwork() // an update must never leave the previous session's routes/firewall rules behind
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -181,6 +194,9 @@ func doInstall(silent bool) error {
 	k.SetDWordValue("NoRepair", 1)
 	k.SetDWordValue("EstimatedSize", 25000)
 	k.Close()
+	// at every boot, before anyone signs in: remove leftovers of a session that died while connected
+	quiet("schtasks", "/Delete", "/TN", bootTask, "/F")
+	quiet("schtasks", "/Create", "/TN", bootTask, "/TR", `"`+exe+`" -cleanup`, "/SC", "ONSTART", "/RU", "SYSTEM", "/RL", "HIGHEST", "/F")
 	// start at sign-in: a scheduled task with highest privileges avoids a UAC prompt on every logon
 	quiet("schtasks", "/Delete", "/TN", taskName, "/F")
 	if autostart {
@@ -203,9 +219,8 @@ func doUninstall(silent bool) error {
 	dropData := !silent && msgBox(appName+" setup", "Also delete your saved servers and keys?\n\n(Choose No to keep them in case you reinstall.)", mbYesNo|mbQ) == idYes
 	quiet("taskkill", "/F", "/IM", "veil.exe")
 	quiet("schtasks", "/Delete", "/TN", taskName, "/F")
-	// leftovers of a crashed VPN session
-	ps(`Remove-NetFirewallRule -DisplayName 'Veil DNS guard*' -ErrorAction SilentlyContinue`)
-	ps(`Remove-NetFirewallRule -DisplayName 'VeilCat DNS guard*' -ErrorAction SilentlyContinue`)
+	quiet("schtasks", "/Delete", "/TN", bootTask, "/F")
+	cleanNetwork() // leftovers of a crashed VPN session
 	time.Sleep(500 * time.Millisecond)
 	os.RemoveAll(startMenuDir())
 	os.Remove(filepath.Join(publicDesktop(), "Veil.lnk"))

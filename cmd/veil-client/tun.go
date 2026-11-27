@@ -44,6 +44,8 @@ func runTUN(ctx context.Context, t *Transport, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("routes: %w", err)
 	}
+	endSession := beginSession(cfg) // guardian + heartbeat: undo the changes if we die or freeze
+	defer endSession()
 	defer cleanup()
 
 	s := stack.New(stack.Options{

@@ -112,6 +112,7 @@ $('doImport').onclick = async () => {
   try { await api('POST', '/import', { text: $('keyText').value, name: $('keyName').value }); importing = false; $('impErr').hidden = true; toast('Server added'); refresh(); }
   catch (e) { $('impErr').textContent = e.message; $('impErr').hidden = false; }
 };
+$('repair').onclick = async () => { try { await api('POST', '/repair'); toast('Network settings cleaned up'); } catch (e) { toast(e.message); } };
 $('quit').onclick = async () => { try { await api('POST', '/quit'); } catch (e) {} document.body.innerHTML = '<p style="padding:40px;text-align:center;color:#8d93ab">Veil has quit. You can close this window.</p>'; setTimeout(() => window.close(), 500); };
 $('logCard').addEventListener('toggle', refresh);
 

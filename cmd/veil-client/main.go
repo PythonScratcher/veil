@@ -58,8 +58,17 @@ func main() {
 	cleanFlag := flag.Bool("cleanup", false, "remove leftover Veil firewall rules/routes after a crash (Administrator)")
 	guiFlag := flag.Bool("gui", false, "open the graphical app")
 	noOpen := flag.Bool("no-open", false, "with -gui: do not open a window, just print the address")
+	guardianPID := flag.Int("guardian", 0, "internal: watch this Veil process and restore the network if it dies")
 	elevated := flag.Bool("elevated", false, "internal: restarted with Administrator rights")
 	flag.Parse()
+	if *guardianPID != 0 {
+		runGuardian(*guardianPID)
+		return
+	}
+	if *cleanFlag {
+		repairNetwork()
+		return
+	}
 	if *guiFlag || *elevated || (guiByDefault && flag.NFlag() == 0) { // double-click on Windows = GUI
 		runGUI(*noOpen, *elevated)
 		return
@@ -71,10 +80,6 @@ func main() {
 	var cfg Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		log.Fatal(err)
-	}
-	if *cleanFlag {
-		cleanupStale(&cfg)
-		return
 	}
 	if *tunFlag {
 		cfg.TUN = true

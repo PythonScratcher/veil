@@ -78,7 +78,10 @@ sudo "$BIN/veil-client" -c client.json -tun > client_kill.log 2>&1 &
 pid=$!
 for i in $(seq 1 40); do grep -q "VPN up" client_kill.log && break; sleep 1; done
 sudo pkill -9 -f "veil-client -c client.json"; sleep 2
-echo "--- left behind after kill -9:"; routes4; routes6; dnsdump
+echo "--- right after kill -9:"; routes4; routes6; dnsdump
+for i in $(seq 1 15); do [ -z "$(routes4)$(routes6)" ] && break; sleep 1; done
+[ -z "$(routes4)$(routes6)" ] && ok "guardian removed the routes by itself" || bad "guardian did not remove routes"
+dnsdump > dns_after_guardian.txt; diff -q dns_before.txt dns_after_guardian.txt >/dev/null && ok "guardian restored DNS by itself" || { bad "guardian did not restore DNS"; diff dns_before.txt dns_after_guardian.txt; }
 sudo "$BIN/veil-client" -c client.json -cleanup
 [ -z "$(routes4)$(routes6)" ] && ok "cleanup removed routes" || bad "cleanup left routes"
 dnsdump > dns_after_kill.txt; diff -q dns_before.txt dns_after_kill.txt >/dev/null && ok "cleanup restored DNS" || { bad "cleanup did not restore DNS"; diff dns_before.txt dns_after_kill.txt; }

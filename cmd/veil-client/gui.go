@@ -262,6 +262,9 @@ func runGUI(noOpen, elevated bool) {
 		return
 	}
 	restoreSystemProxy(proxyState) // leftovers from older versions
+	if isAdmin() {
+		repairNetwork() // a previous run that died while connected may have left routes/firewall rules/DNS behind
+	}
 	g.eng = NewEngine(proxyState)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -332,6 +335,18 @@ func (g *gui) routes() http.Handler {
 	mux.HandleFunc("POST /api/import", api(g.importKey))
 	mux.HandleFunc("POST /api/settings", api(g.settings))
 	mux.HandleFunc("POST /api/connect", api(g.connect))
+	mux.HandleFunc("POST /api/repair", api(func(w http.ResponseWriter, r *http.Request) {
+		if st := g.eng.Status().State; st == "connected" || st == "connecting" {
+			jsonOut(w, 400, map[string]any{"error": "disconnect first"})
+			return
+		}
+		if !isAdmin() {
+			jsonOut(w, 400, map[string]any{"error": "needs Administrator rights", "need_admin": true})
+			return
+		}
+		repairNetwork()
+		jsonOut(w, 200, map[string]any{"ok": true})
+	}))
 	mux.HandleFunc("POST /api/disconnect", api(func(w http.ResponseWriter, r *http.Request) {
 		go g.eng.Stop() // returns at once; the UI shows "Disconnecting…" until teardown finishes
 		time.Sleep(50 * time.Millisecond)
