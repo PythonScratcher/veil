@@ -458,6 +458,17 @@ fun StatusCard(status: JSONObject?) {
                     Spacer(Modifier.height(12.dp))
                     LimitsRows(limits)
                 }
+                var refreshing by remember { mutableStateOf(false) }
+                androidx.compose.material3.TextButton(
+                    enabled = !refreshing,
+                    onClick = {
+                        refreshing = true
+                        Thread {
+                            runCatching { VeilVpnService.client?.refreshLimits() }
+                            refreshing = false
+                        }.start()
+                    },
+                ) { Text(if (refreshing) "Refreshing…" else "Refresh limits") }
             }
         }
     }

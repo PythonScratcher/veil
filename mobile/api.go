@@ -62,6 +62,9 @@ func (c *Client) Start(configJSON string, fd int, mtu int) error {
 func (c *Client) Stop() { c.e.Stop() }
 
 // Running reports whether a connect is in progress or the tunnel is currently up.
+// RefreshLimits re-reads the key's limits from the server now (also done automatically every minute).
+func (c *Client) RefreshLimits() error { return c.e.RefreshLimits() }
+
 func (c *Client) Running() bool { return c.e.Running() }
 
 // Status returns the current EngineStatus as JSON (state, error, since, up/down byte counters,

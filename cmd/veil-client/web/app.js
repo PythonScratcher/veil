@@ -112,6 +112,7 @@ $('doImport').onclick = async () => {
   try { await api('POST', '/import', { text: $('keyText').value, name: $('keyName').value }); importing = false; $('impErr').hidden = true; toast('Server added'); refresh(); }
   catch (e) { $('impErr').textContent = e.message; $('impErr').hidden = false; }
 };
+$('refreshLimits').onclick = async () => { const b = $('refreshLimits'); b.disabled = true; b.textContent = 'Refreshing…'; try { await api('POST', '/refresh-limits'); await refresh(); toast('Limits updated'); } catch (e) { toast(e.message); } b.disabled = false; b.textContent = 'Refresh limits'; };
 $('repair').onclick = async () => { try { await api('POST', '/repair'); toast('Network settings cleaned up'); } catch (e) { toast(e.message); } };
 $('quit').onclick = async () => { try { await api('POST', '/quit'); } catch (e) {} document.body.innerHTML = '<p style="padding:40px;text-align:center;color:#8d93ab">Veil has quit. You can close this window.</p>'; setTimeout(() => window.close(), 500); };
 $('logCard').addEventListener('toggle', refresh);

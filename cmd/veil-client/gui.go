@@ -335,6 +335,13 @@ func (g *gui) routes() http.Handler {
 	mux.HandleFunc("POST /api/import", api(g.importKey))
 	mux.HandleFunc("POST /api/settings", api(g.settings))
 	mux.HandleFunc("POST /api/connect", api(g.connect))
+	mux.HandleFunc("POST /api/refresh-limits", api(func(w http.ResponseWriter, r *http.Request) {
+		if err := g.eng.RefreshLimits(); err != nil {
+			jsonOut(w, 400, map[string]any{"error": "could not reach the server: " + err.Error()})
+			return
+		}
+		jsonOut(w, 200, map[string]any{"ok": true})
+	}))
 	mux.HandleFunc("POST /api/repair", api(func(w http.ResponseWriter, r *http.Request) {
 		if st := g.eng.Status().State; st == "connected" || st == "connecting" {
 			jsonOut(w, 400, map[string]any{"error": "disconnect first"})

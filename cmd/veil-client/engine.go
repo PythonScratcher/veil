@@ -84,6 +84,17 @@ func (e *Engine) Status() EngineStatus {
 	return s
 }
 
+// RefreshLimits asks the server for the connected key's current limits right now.
+func (e *Engine) RefreshLimits() error {
+	e.mu.Lock()
+	t := e.t
+	e.mu.Unlock()
+	if t == nil {
+		return errors.New("not connected")
+	}
+	return t.RefreshLimits(context.Background())
+}
+
 func (e *Engine) Running() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
