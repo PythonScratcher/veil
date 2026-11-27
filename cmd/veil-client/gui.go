@@ -342,6 +342,7 @@ func (g *gui) routes() http.Handler {
 		}
 		jsonOut(w, 200, map[string]any{"ok": true})
 	}))
+	mux.HandleFunc("POST /api/manage/open", api(g.manageOpen))
 	mux.HandleFunc("POST /api/repair", api(func(w http.ResponseWriter, r *http.Request) {
 		if st := g.eng.Status().State; st == "connected" || st == "connecting" {
 			jsonOut(w, 400, map[string]any{"error": "disconnect first"})
@@ -405,11 +406,14 @@ type settingsView struct {
 	HTTP      string `json:"listen_http"`
 	DNS       string `json:"tun_dns"`
 	NetBounce bool   `json:"net_bounce"`
+
+	AdminURL      string `json:"admin_url"`
+	AdminTrustAny bool   `json:"admin_trust_any"`
 }
 
 func viewOf(c *Config) settingsView {
 	v := settingsView{Transport: c.Transport, Frag: c.Frag, Carrier: c.Carrier, Rotate: c.Rotate, Cover: c.Cover == nil || *c.Cover,
-		Mode: c.Mode, SysProxy: c.SysProxy, Socks: c.Socks, HTTP: c.HTTP, DNS: c.DNS, NetBounce: c.NetBounce != nil && *c.NetBounce}
+		Mode: c.Mode, SysProxy: c.SysProxy, Socks: c.Socks, HTTP: c.HTTP, DNS: c.DNS, NetBounce: c.NetBounce != nil && *c.NetBounce, AdminURL: c.AdminURL, AdminTrustAny: c.AdminTrustAny}
 	if v.Transport == "" {
 		v.Transport = "stream"
 	}
@@ -491,7 +495,7 @@ func (g *gui) importKey(w http.ResponseWriter, r *http.Request) {
 				jsonOut(w, 400, map[string]any{"error": "disconnect first"})
 				return
 			}
-			c.Carrier = p.Cfg.Carrier
+			c.Carrier, c.AdminURL, c.AdminTrustAny = p.Cfg.Carrier, p.Cfg.AdminURL, p.Cfg.AdminTrustAny
 			c.Transport, c.Frag, c.Rotate, c.Cover, c.DNS, c.NetBounce = p.Cfg.Transport, p.Cfg.Frag, p.Cfg.Rotate, p.Cfg.Cover, p.Cfg.DNS, p.Cfg.NetBounce
 			p.Cfg = c
 			s.Selected = p.ID
@@ -612,6 +616,13 @@ func (g *gui) settings(w http.ResponseWriter, r *http.Request) {
 	c.Transport, c.Frag, c.Rotate, c.Cover, c.Mode, c.SysProxy = in.Transport, in.Frag, in.Rotate, &cv, "tun", false
 	c.NetBounce = &nb
 	c.DNS = strings.TrimSpace(in.DNS)
+	c.AdminURL, c.AdminTrustAny = strings.TrimSpace(in.AdminURL), in.AdminTrustAny
+	if c.AdminURL != "" {
+		if _, err := parseAdminURL(c.AdminURL); err != nil {
+			jsonOut(w, 400, map[string]any{"error": err.Error()})
+			return
+		}
+	}
 	if err := g.saveCfg(c); err != nil {
 		jsonOut(w, 500, map[string]any{"error": err.Error()})
 		return

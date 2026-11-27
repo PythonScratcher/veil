@@ -66,6 +66,15 @@
       <button class="btn" id="save">Save settings</button>
     </details>
 
+    <details class="card" id="mngCard">
+      <summary>Manage server (admin)</summary>
+      <div class="hint">Opens your server's admin panel (keys, time, data caps, speed limits, QR codes) right from here. You log in with the admin password in the panel itself; Veil never stores it.</div>
+      <label>Admin panel address
+        <input id="fAdminURL" placeholder="https://your-server:8088/secret-path/"></label>
+      <label class="sw"><input type="checkbox" id="fAdminTrust"> Don't check the panel's certificate (only if it is self-signed and Veil's own certificate doesn't cover it)</label>
+      <button class="btn" id="openAdmin">Save &amp; open admin panel</button>
+    </details>
+
     <details class="card" id="keyCard">
       <summary>This server</summary>
       <div class="kv"><span>Address</span><b id="kServer"></b></div>

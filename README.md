@@ -47,6 +47,10 @@ Keys and usage live in `users.json` (mode 0600, saved every 10 s and on shutdown
 
 Veil changes system-wide settings while connected (routes, DNS-leak firewall rules, DNS). To make sure a dead session can never leave your internet broken: a small watcher process undoes all of it the moment Veil dies, is killed, or stops responding for 45 s (it kills the frozen copy first); Veil also cleans up on every start; the Windows installer cleans up before replacing files and registers a boot-time cleanup task; routes are no longer saved across reboots; and the window has a "Fix my internet" link that does the cleanup by hand. From a terminal: `veil.exe -cleanup` (Administrator).
 
+## Managing the server from the Windows/Mac app
+
+In the app window, open **Manage server (admin)**, paste the admin panel address (`https://your-server:8088/secret-path/`, the same one you use in a browser) and press *Save & open admin panel*. The full admin panel opens in your browser through a small local proxy, so Veil's pinned certificate is used and there is no certificate warning. Log in with the admin password in the panel; Veil never stores it. The address is saved per server. The panel is served from a separate local port so the page cannot touch the Veil window's own controls. The app window also has a **Refresh limits** button.
+
 ## Windows app (GUI + tray)
 
 Double-click `veil.exe` (keep `wintun.dll` next to it). Windows asks for Administrator once at launch - needed to create the VPN adapter.

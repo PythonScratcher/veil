@@ -23,6 +23,9 @@ type Config struct {
 	ConnectIP string `json:"connect_ip"`
 	CAFile    string `json:"ca_file"`
 	CAPEM     string `json:"ca_pem"`
+	// admin panel of the server ("Manage server"); address includes the secret path
+	AdminURL      string `json:"admin_url,omitempty"`
+	AdminTrustAny bool   `json:"admin_trust_any,omitempty"`
 	// InsecureTLS skips verifying the OUTER TLS certificate (ignores ca_pem and system roots). Use it
 	// on networks whose DPI swaps in its own certificate. Safe by design: the server is authenticated
 	// by the inner handshake (server_pub + psk), so a forged outer cert only exposes opaque ciphertext.

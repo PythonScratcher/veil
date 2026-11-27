@@ -24,9 +24,11 @@ function fillSettings(s) {
   $('fCarrier').value = s.carrier || 'tls'; $('fTransport').value = s.transport; $('fFrag').value = s.frag; $('fRotate').value = s.rotate_minutes; $('fDNS').value = s.tun_dns;
   $('fCover').checked = s.cover;
   $('fNetBounce').checked = s.net_bounce;
+  if (document.activeElement !== $('fAdminURL')) $('fAdminURL').value = s.admin_url || '';
+  $('fAdminTrust').checked = !!s.admin_trust_any;
 }
 function readSettings() {
-  return { carrier: $('fCarrier').value, transport: $('fTransport').value, frag: $('fFrag').value, rotate_minutes: parseInt($('fRotate').value, 10) || 20, tun_dns: $('fDNS').value, cover: $('fCover').checked, net_bounce: $('fNetBounce').checked };
+  return { carrier: $('fCarrier').value, transport: $('fTransport').value, frag: $('fFrag').value, rotate_minutes: parseInt($('fRotate').value, 10) || 20, tun_dns: $('fDNS').value, cover: $('fCover').checked, net_bounce: $('fNetBounce').checked, admin_url: $('fAdminURL').value, admin_trust_any: $('fAdminTrust').checked };
 }
 
 function render() {
@@ -100,6 +102,7 @@ $('power').onclick = async () => {
 };
 $('elevate').onclick = async () => { try { await api('POST', '/elevate'); $('sub').textContent = 'Restarting with Administrator rights…'; } catch (e) { toast(e.message); } };
 document.querySelectorAll('#adv input,#adv select').forEach(el => el.addEventListener('input', () => dirty = true));
+document.querySelectorAll('#mngCard input').forEach(el => el.addEventListener('input', () => dirty = true));
 $('save').onclick = async () => { try { await api('POST', '/settings', readSettings()); dirty = false; toast('Saved'); refresh(); } catch (e) { toast(e.message); } };
 $('replace').onclick = $('addSrv').onclick = () => { importing = true; $('keyText').value = ''; $('keyName').value = ''; $('impErr').hidden = true; render(); };
 $('cancelImport').onclick = () => { importing = false; render(); };
@@ -113,6 +116,7 @@ $('doImport').onclick = async () => {
   catch (e) { $('impErr').textContent = e.message; $('impErr').hidden = false; }
 };
 $('refreshLimits').onclick = async () => { const b = $('refreshLimits'); b.disabled = true; b.textContent = 'Refreshing…'; try { await api('POST', '/refresh-limits'); await refresh(); toast('Limits updated'); } catch (e) { toast(e.message); } b.disabled = false; b.textContent = 'Refresh limits'; };
+$('openAdmin').onclick = async () => { try { await api('POST', '/settings', readSettings()); const r = await api('POST', '/manage/open'); dirty = false; window.open(r.url, '_blank'); } catch (e) { toast(e.message); } };
 $('repair').onclick = async () => { try { await api('POST', '/repair'); toast('Network settings cleaned up'); } catch (e) { toast(e.message); } };
 $('quit').onclick = async () => { try { await api('POST', '/quit'); } catch (e) {} document.body.innerHTML = '<p style="padding:40px;text-align:center;color:#8d93ab">Veil has quit. You can close this window.</p>'; setTimeout(() => window.close(), 500); };
 $('logCard').addEventListener('toggle', refresh);
