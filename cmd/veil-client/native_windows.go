@@ -42,7 +42,7 @@ func runNative(g *gui, w *app.Window) {
 		natWin = nil
 		natMu.Unlock()
 	}()
-	w.Option(app.Title("Veil"), app.Size(unit.Dp(460), unit.Dp(800)), app.MinSize(unit.Dp(380), unit.Dp(520)))
+	w.Option(app.Title("Veil"), app.Size(unit.Dp(460), unit.Dp(740)), app.MinSize(unit.Dp(380), unit.Dp(520)))
 	u := newNativeUI(g)
 	u.invalidate = w.Invalidate
 	u.poll()

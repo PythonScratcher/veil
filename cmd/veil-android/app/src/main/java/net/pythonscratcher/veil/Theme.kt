@@ -9,36 +9,36 @@ import androidx.compose.ui.graphics.Color
 
 // A small, deliberately calm palette - deep indigo/slate rather than default Material purple, so
 // the app reads as a security tool rather than a generic template.
-private val VeilBlue = Color(0xFF6EA8FE)
-private val VeilBlueDark = Color(0xFF3D6FD6)
+private val VeilBlue = Color(0xFFA78BFA)
+private val VeilBlueDark = Color(0xFF6A4BE0)
 private val VeilGreen = Color(0xFF69DB9C)
 private val VeilAmber = Color(0xFFE8B339)
 private val VeilRed = Color(0xFFE5676B)
 
 private val DarkScheme = darkColorScheme(
     primary = VeilBlue,
-    onPrimary = Color(0xFF02142E),
-    primaryContainer = Color(0xFF17315C),
-    onPrimaryContainer = Color(0xFFD7E6FF),
+    onPrimary = Color(0xFF1A1033),
+    primaryContainer = Color(0xFF2C2357),
+    onPrimaryContainer = Color(0xFFE9E2FF),
     secondary = VeilGreen,
     tertiary = VeilAmber,
     error = VeilRed,
     errorContainer = Color(0xFF4A1D20),
     onErrorContainer = Color(0xFFFFD9DA),
-    background = Color(0xFF0E1116),
-    onBackground = Color(0xFFE3E6EA),
-    surface = Color(0xFF151921),
-    onSurface = Color(0xFFE3E6EA),
-    surfaceVariant = Color(0xFF1E232D),
-    onSurfaceVariant = Color(0xFFB7BFCC),
-    outline = Color(0xFF3A4150),
+    background = Color(0xFF0F1117),
+    onBackground = Color(0xFFE7E9F1),
+    surface = Color(0xFF171A23),
+    onSurface = Color(0xFFE7E9F1),
+    surfaceVariant = Color(0xFF1E2230),
+    onSurfaceVariant = Color(0xFF8D93AB),
+    outline = Color(0xFF2A2F42),
 )
 
 private val LightScheme = lightColorScheme(
     primary = VeilBlueDark,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCE7FF),
-    onPrimaryContainer = Color(0xFF0B2C63),
+    primaryContainer = Color(0xFFE9E2FF),
+    onPrimaryContainer = Color(0xFF24135E),
     secondary = Color(0xFF1F8F5C),
     tertiary = Color(0xFF9C6F00),
     error = Color(0xFFBA1A1A),
