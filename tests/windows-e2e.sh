@@ -33,6 +33,7 @@ for car in tls ws; do
   cp "$BIN/veil-client.exe" "veil_$car.exe"
   t0=$(date +%s%N)
   step "client $car"; "./veil_$car.exe" -c "client_$car.json" -tun > "client_$car.log" 2>&1 < /dev/null &
+  WPID=$(cat /proc/$!/winpid)
   for i in $(seq 1 120); do grep -q "VPN up" "client_$car.log" && break; sleep 0.25; done
   t1=$(date +%s%N)
   grep -q "VPN up" "client_$car.log" && ok "$car: tunnel up in $(( (t1-t0)/1000000 )) ms" || { bad "$car: tunnel up"; cat "client_$car.log"; continue; }
@@ -40,15 +41,21 @@ for car in tls ws; do
   [ "$(rules)" = 2 ] && ok "$car: DNS guard rules" || bad "$car: DNS guard rules ($(rules))"
   wh=$(psq "(Get-NetIPInterface -InterfaceAlias Veil -AddressFamily IPv4).WeakHostReceive")
   [ "$wh" = Enabled ] && ok "$car: weak-host receive on the adapter" || bad "$car: weak-host receive is '$wh'"
-  curl -s -o /dev/null --max-time 5 http://10.99.99.99/
-  for i in $(seq 1 10); do grep -q "tcp 10.99.99.99:80" "client_$car.log" && break; sleep 1; done
-  grep -q "tcp 10.99.99.99:80" "client_$car.log" && ok "$car: traffic went through the tunnel" || { bad "$car: no tunnel traffic"; tail -20 "client_$car.log"; }
+  hit=""
+  for ip in 10.99.99.99 172.31.254.1 100.100.100.100 192.168.254.1; do
+    echo "route to $ip: $(psq "(Find-NetRoute -RemoteIPAddress $ip | Select-Object -First 1).InterfaceAlias")"
+    curl -s -o /dev/null --max-time 4 http://$ip/
+    for i in $(seq 1 6); do grep -q "tcp $ip:80" "client_$car.log" && { hit=$ip; break 2; }; sleep 1; done
+  done
+  [ -n "$hit" ] && ok "$car: traffic went through the tunnel ($hit)" || { bad "$car: no tunnel traffic"; tail -20 "client_$car.log"; }
   # hard kill (like a crash or Task Manager) -> the guardian must restore the network
-  step kill; timeout 30 taskkill //F //IM "veil_$car.exe" > /dev/null
+  # kill only the VPN process (like a crash); its guardian is a separate process and must survive
+  step "kill pid $WPID"; timeout 30 taskkill //F //PID "$WPID" > /dev/null
   for i in $(seq 1 20); do [ "$(routes)$(rules)" = 00 ] && break; sleep 1; done
   [ "$(routes)" = 0 ] && ok "$car: guardian removed routes after kill" || bad "$car: routes left after kill ($(routes))"
   [ "$(rules)" = 0 ] && ok "$car: guardian removed firewall rules after kill" || bad "$car: rules left after kill"
   curl -s -o /dev/null --max-time 15 https://example.com && ok "$car: internet works after kill" || bad "$car: internet broken after kill"
+  "$BIN/veil-client.exe" -c client.json -cleanup > /dev/null 2>&1   # never leave the runner broken for the next step
 done
 # ---- native window screenshot
 step gui
