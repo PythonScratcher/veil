@@ -69,7 +69,7 @@ func configureRoutes(ifname string, cfg *Config) (func(), error) {
 		`Clear-DnsClientCache`,
 	}
 	cleanup := func() {
-		ps(fmt.Sprintf(`Remove-NetRoute -DestinationPrefix %s/32 -Confirm:$false -ErrorAction SilentlyContinue`, srv))
+		removeHostPin(srv)
 		removeOverrideRoutes()
 		removeDNSLeakRules()
 		ps(`Clear-DnsClientCache`)
@@ -147,10 +147,17 @@ func cleanupStale(cfg *Config) {
 	if ips, err := net.LookupIP(host); err == nil {
 		for _, ip := range ips {
 			if ip.To4() != nil {
-				ps(fmt.Sprintf(`Remove-NetRoute -DestinationPrefix %s/32 -Confirm:$false -ErrorAction SilentlyContinue`, ip))
+				removeHostPin(ip.String())
 			}
 		}
 	}
 	ps(`Clear-DnsClientCache`)
 	fmt.Println("cleaned up Veil firewall rules and routes")
+}
+
+// removeHostPin removes the route that pins the Veil server's address to the real gateway. Only
+// routes with a gateway are removed: if the server's address is also a local address, Windows has
+// its own on-link host route for it that must stay.
+func removeHostPin(ip string) {
+	ps(fmt.Sprintf(`Get-NetRoute -DestinationPrefix %s/32 -ErrorAction SilentlyContinue | Where-Object { $_.NextHop -ne '0.0.0.0' } | Remove-NetRoute -Confirm:$false -ErrorAction SilentlyContinue`, ip))
 }
