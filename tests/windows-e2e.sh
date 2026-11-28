@@ -31,7 +31,7 @@ echo "plain HTTP check: $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 ht
 python -c "import json;c=json.load(open('client.json'));c['carrier']='ws';c['listen_socks']='127.0.0.1:19080';c['listen_http']='127.0.0.1:19081';json.dump(c,open('client_wsproxy.json','w'))"
 "$BIN/veil-client.exe" -c client_wsproxy.json > client_wsproxy.log 2>&1 < /dev/null &
 sleep 6; echo "ws proxy-mode log:"; cat client_wsproxy.log; taskkill //F //IM veil-client.exe > /dev/null 2>&1
-for car in tls ws; do
+for car in ws tls; do
   echo; echo "=========== $car"
   python -c "import json,sys;c=json.load(open('client.json'));c['carrier']='$car';json.dump(c,open('client_$car.json','w'))"
   cp "$BIN/veil-client.exe" "veil_$car.exe"
@@ -61,6 +61,8 @@ for car in tls ws; do
   [ "$(routes)" = 0 ] && ok "$car: guardian removed routes after kill" || bad "$car: routes left after kill ($(routes))"
   [ "$(rules)" = 0 ] && ok "$car: guardian removed firewall rules after kill" || bad "$car: rules left after kill"
   curl -s -o /dev/null --max-time 15 https://example.com && ok "$car: internet works after kill" || bad "$car: internet broken after kill"
+  echo "leftover host routes: $(psq "Get-NetRoute -DestinationPrefix $LAN/32 -ErrorAction SilentlyContinue | Format-Table -HideTableHeaders DestinationPrefix,NextHop,InterfaceAlias | Out-String")"
+  echo "plain HTTP check after: $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://$LAN:18080/)"
   "$BIN/veil-client.exe" -c client.json -cleanup > /dev/null 2>&1   # never leave the runner broken for the next step
 done
 # ---- native window screenshot
