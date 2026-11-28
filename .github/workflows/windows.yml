@@ -1,0 +1,30 @@
+name: Windows test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          go build -o "$RUNNER_TEMP/bin/veil-server.exe" ./cmd/veil-server
+          go build -o "$RUNNER_TEMP/bin/veil-client.exe" ./cmd/veil-client
+          cp assets/wintun.dll "$RUNNER_TEMP/bin/"
+      - name: Tunnel, routes, firewall, crash cleanup
+        run: bash tests/windows-e2e.sh "$RUNNER_TEMP/bin"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-logs
+          path: ${{ runner.temp }}/veil-e2e/*.log

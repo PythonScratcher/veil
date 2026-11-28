@@ -74,12 +74,27 @@ func configureRoutes(ifname string, cfg *Config) (func(), error) {
 		removeDNSLeakRules()
 		ps(`Clear-DnsClientCache`)
 	}
-	for _, s := range steps {
-		if out, err := ps(s); err != nil {
-			log.Printf("route step failed: %s\n  %v: %s", s, err, out)
-			cleanup()
-			return nil, err
+	// One PowerShell process for every step: starting PowerShell costs ~0.5-1 s each time, so the
+	// old one-process-per-step approach added many seconds before traffic actually moved.
+	var sb strings.Builder
+	sb.WriteString("$ErrorActionPreference = 'Stop'\n")
+	for i, st := range steps {
+		fmt.Fprintf(&sb, "try { %s } catch { Write-Output \"STEPFAIL %d: $($_.Exception.Message)\"; exit 1 }\n", st, i)
+	}
+	// Strong-host receive (the Windows default) drops packets that arrive on the VPN adapter but are
+	// addressed to the Wi-Fi/Ethernet IP. Connections that were open before connecting (browser
+	// keep-alives, QUIC/HTTP3 in Chrome, games, calls) use that address, so their replies were
+	// silently dropped until the app timed out - up to a minute. Weak-host receive lets those replies
+	// in: QUIC flows simply continue through the tunnel and stale TCP connections get an immediate
+	// reset from the tunnel and reconnect.
+	fmt.Fprintf(&sb, "Set-NetIPInterface -InterfaceAlias '%s' -WeakHostReceive Enabled -ErrorAction SilentlyContinue\n", ifname)
+	if out, err := ps(sb.String()); err != nil {
+		log.Printf("route setup failed: %v: %s", err, out)
+		cleanup()
+		if i := strings.Index(out, "STEPFAIL"); i >= 0 {
+			out = out[i:]
 		}
+		return nil, fmt.Errorf("%v: %s", err, out)
 	}
 	return cleanup, nil
 }
