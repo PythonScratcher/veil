@@ -45,7 +45,7 @@ PY
   sudo "$BIN/veil-client" -c "client_$car.json" -tun > "client_$car.log" 2>&1 &
   local pid=$!
   for i in $(seq 1 40); do grep -q "VPN up" "client_$car.log" && break; kill -0 $pid 2>/dev/null || break; sleep 1; done
-  if ! grep -q "VPN up" "client_$car.log"; then bad "$car: tunnel came up"; cat "client_$car.log"; sudo kill -9 $pid 2>/dev/null; sudo "$BIN/veil-client" -c client.json -cleanup; return; fi
+  if ! grep -q "VPN up" "client_$car.log"; then bad "$car: tunnel came up"; cat "client_$car.log"; echo "--- system log:"; sudo log show --last 3m --style compact --predicate 'eventMessage CONTAINS[c] "veil" OR process CONTAINS[c] "veil"' 2>/dev/null | grep -iv "networkd\|mDNS" | tail -25; ps aux | grep -i "[v]eil" | head; sudo kill -9 $pid 2>/dev/null; sudo "$BIN/veil-client" -c client.json -cleanup; return; fi
   ok "$car: tunnel came up"
   local ut; ut=$(ifconfig | awk '/^utun[0-9]+:/{n=$1} /10\.77\.0\.2/{print n}' | tr -d :)
   [ -n "$ut" ] && ok "$car: interface $ut has 10.77.0.2" || bad "$car: tunnel interface address"
