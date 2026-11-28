@@ -6,7 +6,7 @@ on:
 jobs:
   e2e:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
@@ -27,4 +27,6 @@ jobs:
         if: always()
         with:
           name: windows-logs
-          path: ${{ runner.temp }}/veil-e2e/*.log
+          path: |
+            ${{ runner.temp }}/veil-e2e/*.log
+            ${{ runner.temp }}/veil-e2e/*.png

@@ -45,12 +45,17 @@ type gui struct {
 	qonce    sync.Once
 	winMu    sync.Mutex
 	winOpen  bool
+	h        http.Handler
 }
 
 func (g *gui) doQuit() { g.qonce.Do(func() { close(g.quit) }) }
 
 // showWindow opens the UI unless one is already open.
 func (g *gui) showWindow() {
+	if nativeWindow != nil && os.Getenv("VEIL_WEBUI") == "" {
+		nativeWindow(g)
+		return
+	}
 	g.winMu.Lock()
 	if g.winOpen {
 		g.winMu.Unlock()
@@ -250,7 +255,9 @@ func runGUI(noOpen, elevated bool) {
 				time.Sleep(300 * time.Millisecond)
 				continue
 			}
-			openWindow(fmt.Sprintf("http://127.0.0.1:%d/?t=%s", gi.Port, gi.Token), g.dir)
+			if !showRemote(gi) {
+				openWindow(fmt.Sprintf("http://127.0.0.1:%d/?t=%s", gi.Port, gi.Token), g.dir)
+			}
 			return
 		}
 		break
@@ -279,7 +286,8 @@ func runGUI(noOpen, elevated bool) {
 	os.WriteFile(infoPath, ib, 0600)
 	defer os.Remove(infoPath)
 
-	srv := &http.Server{Handler: g.routes(), ReadHeaderTimeout: 10 * time.Second, ErrorLog: log.New(io.Discard, "", 0)}
+	g.h = g.routes()
+	srv := &http.Server{Handler: g.h, ReadHeaderTimeout: 10 * time.Second, ErrorLog: log.New(io.Discard, "", 0)}
 	go srv.Serve(ln)
 	url := fmt.Sprintf("http://127.0.0.1:%d/?t=%s", g.port, g.token)
 	log.Printf("Veil %s ready", appVersion)
@@ -370,6 +378,10 @@ func (g *gui) routes() http.Handler {
 		}
 		jsonOut(w, 200, map[string]any{"ok": true})
 		go func() { time.Sleep(400 * time.Millisecond); g.doQuit() }()
+	}))
+	mux.HandleFunc("POST /api/show", api(func(w http.ResponseWriter, r *http.Request) {
+		go g.showWindow()
+		jsonOut(w, 200, map[string]any{"ok": true})
 	}))
 	mux.HandleFunc("POST /api/quit", api(func(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, 200, map[string]any{"ok": true})
