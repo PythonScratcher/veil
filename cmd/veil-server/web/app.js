@@ -1,6 +1,6 @@
 'use strict';
 const $app = document.getElementById('app');
-let csrf = '', users = [], info = {}, timer = null, modalOpen = false;
+let csrf = '', users = [], info = {}, timer = null, modalOpen = false, tab = 'keys', domains = [], apikeys = [];
 
 // ---- tiny DOM helper (no innerHTML anywhere: names/notes are untrusted text)
 function h(tag, attrs, ...kids) {
@@ -124,7 +124,7 @@ function usageCard(id, title) {
       sum.textContent = 'Last ' + range + ': ↓ ' + fmtBytes(dn) + '   ↑ ' + fmtBytes(up) + '   (' + fmtBytes(up + dn) + ' total)';
       if (top) {
         const rows = d.per_key || [], mx = Math.max(1, ...rows.map(r => r.up + r.down));
-        top.replaceChildren(rows.length ? h('div', { class: 'lbl', style: 'margin:12px 0 6px' }, 'By key') : null,
+        top.replaceChildren(...(rows.length ? [h('div', { class: 'lbl', style: 'margin:12px 0 6px' }, 'By key')] : []),
           ...rows.slice(0, 12).map(r => h('div', { class: 'toprow' },
             h('div', { class: 'tn' }, r.name),
             h('div', { class: 'bar' }, h('i', { style: 'width:' + ((r.up + r.down) / mx * 100) + '%' })),
@@ -185,8 +185,14 @@ async function start() {
 }
 async function refreshQuiet() { try { [info, users] = await Promise.all([api('GET', '/server'), api('GET', '/users')]); } catch (e) {} }
 async function refresh() {
-  try { [info, users] = await Promise.all([api('GET', '/server'), api('GET', '/users')]); render(); } catch (e) { if (e.message !== 'Please log in') toast(e.message, true); }
+  try {
+    [info, users] = await Promise.all([api('GET', '/server'), api('GET', '/users')]);
+    if (tab === 'domains') domains = await api('GET', '/domains');
+    if (tab === 'api') apikeys = await api('GET', '/apikeys');
+    render();
+  } catch (e) { if (e.message !== 'Please log in') toast(e.message, true); }
 }
+function setTab(t) { tab = t; refresh(); }
 function render() {
   if (!totalCard) totalCard = usageCard('total', 'Traffic — all keys');
   const wrap = h('div', { class: 'wrap' },
@@ -200,9 +206,12 @@ function render() {
       stat('Online', info.conns, 'open tunnels'),
       stat('Speed', '↓ ' + fmtSpeed(info.speed_down), '↑ ' + fmtSpeed(info.speed_up)),
       stat('Traffic', fmtBytes(info.total_down + info.total_up), '↓ ' + fmtBytes(info.total_down) + '  ↑ ' + fmtBytes(info.total_up))),
-    totalCard.el,
-    users.length ? h('div', { class: 'list', style: 'margin-top:14px' }, users.map(rowFor)) :
-      h('div', { class: 'empty' }, 'No keys yet. Click “New key” to create one for a client.'));
+    h('nav', { class: 'maintabs' },
+      [['keys', 'Keys'], ['domains', 'Domains'], ['api', 'API']].map(([k, l]) => h('button', { class: tab === k ? 'on' : '', onclick: () => setTab(k) }, l))),
+    tab === 'domains' ? domainsView() : tab === 'api' ? apiView() : [
+      totalCard.el,
+      users.length ? h('div', { class: 'list', style: 'margin-top:14px' }, users.map(rowFor)) :
+        h('div', { class: 'empty' }, 'No keys yet. Click “New key” to create one for a client.')]);
   $app.replaceChildren(wrap);
 }
 const stat = (k, v, s) => h('div', { class: 'stat' }, h('div', { class: 'k' }, k), h('div', { class: 'v' }, String(v)), h('div', { class: 's' }, s));
@@ -335,20 +344,110 @@ function editDialog(u0) {
 }
 
 async function configDialog(u) {
-  let text = '';
-  try { const r = await fetch('api/users/' + u.id + '/config', { credentials: 'same-origin' }); text = await r.text(); } catch (e) { toast(e.message, true); return; }
+  let text = '', dom = '';
+  try { domains = await api('GET', '/domains'); } catch (e) { domains = []; }
+  const primary = (domains.find(d => d.primary) || {}).name || '';
+  dom = primary;
+  const q = () => dom ? '&domain=' + encodeURIComponent(dom) : '';
+  const pre = h('pre', { class: 'cfg' }, '');
+  const img = h('img', { alt: 'QR code', style: 'width:220px;height:220px;background:#fff;padding:8px;border-radius:8px;display:block;margin:0 auto 12px' });
+  const dl = h('a', { class: 'btn', download: 'client.json', style: 'text-decoration:none' }, 'Download');
+  async function load() {
+    try {
+      const r = await fetch('api/users/' + u.id + '/config?x=1' + q(), { credentials: 'same-origin' });
+      text = await r.text(); if (!r.ok) { try { text = JSON.parse(text).error; } catch (e) {} }
+    } catch (e) { text = e.message; }
+    pre.textContent = text;
+    img.src = 'api/users/' + u.id + '/qr.png?t=' + Date.now() + q();
+    dl.href = 'api/users/' + u.id + '/config?download=1' + q();
+  }
+  await load();
+  const picker = domains.length > 1 ? h('div', { class: 'f' }, h('label', { class: 't' }, 'Domain in this key'),
+    h('select', { class: 'in', onchange: e => { dom = e.target.value; load(); } },
+      domains.map(d => h('option', { value: d.name, selected: d.name === dom ? true : false }, d.name + (d.cert === 'letsencrypt' ? '  (Let\'s Encrypt)' : '  (server certificate)') + (d.primary ? ' · default' : ''))))) : null;
   modal(close => h('div', {},
     h('h2', {}, 'Client config — ' + u.name),
-    h('div', { class: 'sub' }, 'Save as client.json next to veil-client.exe on the client machine. Contains the secret key: send it privately.'),
-    h('div', { class: 'small', style: 'margin:10px 0 4px' }, 'Scan with the Veil Android app (Add server → Scan QR):'),
-    h('img', { src: 'api/users/' + u.id + '/qr.png?t=' + Date.now(), alt: 'QR code', style: 'width:220px;height:220px;background:#fff;padding:8px;border-radius:8px;display:block;margin:0 auto 12px' }),
-    h('pre', { class: 'cfg' }, text),
-    h('div', { class: 'small', style: 'margin-top:10px' }, 'Run: veil-client.exe -c client.json    (add -tun in an Administrator shell for full-device VPN)'),
+    h('div', { class: 'sub' }, 'Import this key in the Veil app (paste or scan the QR code). It contains the secret key: send it privately.'),
+    picker,
+    img, pre,
     h('div', { class: 'foot' }, h('div', { class: 'grp' }),
       h('div', { class: 'grp' },
         h('button', { class: 'btn', onclick: async () => { try { await navigator.clipboard.writeText(text); toast('Copied'); } catch (e) { toast('Select the text and copy manually', true); } } }, 'Copy'),
-        h('a', { class: 'btn', href: 'api/users/' + u.id + '/config?download=1', download: 'client.json', style: 'text-decoration:none' }, 'Download'),
+        dl,
         h('button', { class: 'btn primary', onclick: close }, 'Done')))));
+}
+
+// ---- domains
+function domainsView() {
+  const name = h('input', { class: 'in', placeholder: 'vpn.example.com' });
+  const cert = h('select', { class: 'in' }, h('option', { value: 'letsencrypt' }, 'Let\'s Encrypt (real certificate)'), h('option', { value: 'server' }, 'Server\'s own certificate'));
+  const add = async () => {
+    try { await api('POST', '/domains', { name: name.value, cert: cert.value }); toast('Domain added'); refresh(); }
+    catch (e) { toast(e.message, true); }
+  };
+  return h('div', {},
+    h('div', { class: 'card' },
+      h('h3', {}, 'Add a domain'),
+      h('div', { class: 'small' }, 'Point the domain\'s DNS (A record) at this server first. A Let\'s Encrypt certificate is requested automatically; it needs port 443 (or 80 with listen_http) reachable from the internet and renews itself. Keys can then be handed out for any domain, so if one name gets blocked you can switch clients to another.'),
+      h('div', { class: 'addrow' }, name, cert, h('button', { class: 'btn primary', onclick: add }, 'Add'))),
+    h('div', { class: 'list', style: 'margin-top:14px' }, domains.map(d => h('div', { class: 'drow' },
+      h('div', {},
+        h('div', { class: 'name' }, d.name,
+          d.main ? h('span', { class: 'badge' }, 'main') : null,
+          d.primary ? h('span', { class: 'badge active' }, 'default for keys') : null,
+          h('span', { class: 'badge' }, d.cert === 'letsencrypt' ? 'Let\'s Encrypt' : 'server certificate')),
+        h('div', { class: 'small' }, 'DNS: ' + ((d.resolves_to || []).join(', ') || 'does not resolve')),
+        d.cert_error ? h('div', { class: 'small', style: 'color:var(--bad)' }, 'Certificate: ' + d.cert_error) : null),
+      h('div', { class: 'actions' },
+        h('button', { class: 'btn sm', onclick: async e => {
+          e.target.disabled = true; e.target.textContent = 'Checking…';
+          try {
+            const r = await api('GET', '/domains/' + encodeURIComponent(d.name) + '?check=1');
+            const c = r.certificate || {};
+            if (c.status === 'ok') toast('Certificate OK · ' + (c.issuer || '') + ' · expires ' + new Date(c.expires * 1000).toLocaleDateString() + (c.covers ? '' : ' · does NOT cover this name'), !c.covers);
+            else toast('Certificate: ' + (c.error || c.status), true);
+          } catch (err) { toast(err.message, true); }
+          refresh();
+        } }, 'Check certificate'),
+        d.primary ? null : h('button', { class: 'btn sm', onclick: async () => { try { await api('POST', '/domains/' + encodeURIComponent(d.name) + '/primary'); toast('New keys now use ' + d.name); refresh(); } catch (e) { toast(e.message, true); } } }, 'Make default'),
+        d.main ? null : h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Remove ' + d.name + '? Keys handed out for it stop working once its DNS no longer points here.')) return; try { await api('DELETE', '/domains/' + encodeURIComponent(d.name)); refresh(); } catch (e) { toast(e.message, true); } } }, 'Remove'))))));
+}
+
+// ---- API keys
+function apiView() {
+  const base = location.origin + location.pathname.replace(/[^/]*$/, '') + 'api/v1';
+  const name = h('input', { class: 'in', placeholder: 'e.g. billing bot' });
+  const scope = h('select', { class: 'in' }, h('option', { value: 'write' }, 'Full access'), h('option', { value: 'read' }, 'Read only'));
+  const days = h('select', { class: 'in' }, h('option', { value: '0' }, 'Never expires'), h('option', { value: '30' }, '30 days'), h('option', { value: '90' }, '90 days'), h('option', { value: '365' }, '1 year'));
+  const create = async () => {
+    try {
+      const r = await api('POST', '/apikeys', { name: name.value, scope: scope.value, days: parseInt(days.value, 10) });
+      modal(close => h('div', {},
+        h('h2', {}, 'API key created'),
+        h('div', { class: 'sub' }, 'Copy it now: it is shown only once.'),
+        h('pre', { class: 'cfg' }, r.token),
+        h('div', { class: 'small', style: 'margin:10px 0 4px' }, 'Example:'),
+        h('pre', { class: 'cfg' }, 'curl -k -H "Authorization: Bearer ' + r.token + '" \\\n  ' + base + '/users'),
+        h('div', { class: 'foot' }, h('div', { class: 'grp' }), h('div', { class: 'grp' },
+          h('button', { class: 'btn', onclick: async () => { try { await navigator.clipboard.writeText(r.token); toast('Copied'); } catch (e) { toast('Select and copy manually', true); } } }, 'Copy key'),
+          h('button', { class: 'btn primary', onclick: close }, 'Done')))));
+    } catch (e) { toast(e.message, true); }
+  };
+  return h('div', {},
+    h('div', { class: 'card' },
+      h('h3', {}, 'REST API'),
+      h('div', { class: 'small' }, 'Manage keys, limits, domains and usage from your own scripts or apps. Send an API key as “Authorization: Bearer …”. Base URL:'),
+      h('pre', { class: 'cfg' }, base),
+      h('a', { class: 'btn', href: 'docs.html', target: '_blank', rel: 'noopener', style: 'text-decoration:none;display:inline-block;margin-top:8px' }, 'API reference')),
+    h('div', { class: 'card', style: 'margin-top:14px' },
+      h('h3', {}, 'Create an API key'),
+      h('div', { class: 'addrow' }, name, scope, days, h('button', { class: 'btn primary', onclick: create }, 'Create'))),
+    h('div', { class: 'list', style: 'margin-top:14px' }, apikeys.length ? apikeys.map(k => h('div', { class: 'drow' },
+      h('div', {},
+        h('div', { class: 'name' }, k.name, h('span', { class: 'badge ' + (k.scope === 'write' ? 'active' : '') }, k.scope === 'write' ? 'full access' : 'read only')),
+        h('div', { class: 'small' }, 'veil_' + k.id + '_…' + k.hint + ' · created ' + ago(k.created) + ' · last used ' + ago(k.last_used) + (k.last_ip ? ' from ' + k.last_ip : '') + (k.expires ? ' · ' + fmtLeft(k.expires) : ''))),
+      h('div', { class: 'actions' }, h('button', { class: 'btn sm danger', onclick: async () => { if (!confirm('Revoke “' + k.name + '”? Anything using it stops working immediately.')) return; try { await api('DELETE', '/apikeys/' + k.id); refresh(); } catch (e) { toast(e.message, true); } } }, 'Revoke')))) :
+      h('div', { class: 'empty' }, 'No API keys yet.')));
 }
 
 // ---- boot

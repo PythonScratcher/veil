@@ -107,6 +107,8 @@ func (a *admin) routes() http.Handler {
 	mux.HandleFunc("POST /api/users/{id}/regen-key", a.auth(a.regenKey))
 	mux.HandleFunc("GET /api/users/{id}/config", a.auth(a.userConfig))
 	mux.HandleFunc("GET /api/users/{id}/qr.png", a.auth(a.userQR))
+	a.panelExtraRoutes(mux)
+	a.apiRoutes(mux)
 	return secure(mux)
 }
 
@@ -454,14 +456,10 @@ func (a *admin) userConfig(w http.ResponseWriter, r *http.Request) {
 	if ac == nil {
 		return
 	}
-	rec := ac.snapshot()
-	cc := ClientConfig{
-		Server: net.JoinHostPort(a.s.cfg.Domain, itoa(a.s.publicPort())), SNI: a.s.sniName(), CAPEM: a.s.cfg.ClientCA, Path: a.s.cfg.Path,
-		ServerPub: b64(a.s.priv.PublicKey().Bytes()), PSK: rec.PSK, Socks: "127.0.0.1:1080", HTTP: "127.0.0.1:8080", DNS: "1.1.1.1",
-	}
-	if lh := a.s.cfg.ListenHTTP; lh != "" {
-		_, port, _ := net.SplitHostPort(lh)
-		cc.WSAddr = net.JoinHostPort(a.s.cfg.Domain, port)
+	cc, err := a.s.clientConfig(ac.snapshot().PSK, r.URL.Query().Get("domain"))
+	if err != nil {
+		jerr(w, 400, err.Error())
+		return
 	}
 	if r.URL.Query().Get("download") == "1" {
 		w.Header().Set("Content-Disposition", `attachment; filename="client.json"`)
@@ -578,17 +576,17 @@ func (a *admin) userQR(w http.ResponseWriter, r *http.Request) {
 	if ac == nil {
 		return
 	}
-	rec := ac.snapshot()
-	m := map[string]string{
-		"server": net.JoinHostPort(a.s.cfg.Domain, itoa(a.s.publicPort())), "sni": a.s.sniName(), "path": a.s.cfg.Path,
-		"server_pub": b64(a.s.priv.PublicKey().Bytes()), "psk": rec.PSK,
+	cc, err := a.s.clientConfig(ac.snapshot().PSK, r.URL.Query().Get("domain"))
+	if err != nil {
+		jerr(w, 400, err.Error())
+		return
 	}
-	if a.s.cfg.ClientCA != "" {
-		m["ca_pem"] = a.s.cfg.ClientCA
+	m := map[string]string{"server": cc.Server, "sni": cc.SNI, "path": cc.Path, "server_pub": cc.ServerPub, "psk": cc.PSK}
+	if cc.CAPEM != "" {
+		m["ca_pem"] = cc.CAPEM
 	}
-	if lh := a.s.cfg.ListenHTTP; lh != "" {
-		_, port, _ := net.SplitHostPort(lh)
-		m["ws_addr"] = net.JoinHostPort(a.s.cfg.Domain, port)
+	if cc.WSAddr != "" {
+		m["ws_addr"] = cc.WSAddr
 	}
 	j, _ := json.Marshal(m)
 	png, err := qrcode.Encode(string(j), qrcode.Low, 640)

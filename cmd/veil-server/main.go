@@ -7,7 +7,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -31,7 +30,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/http2"
 
@@ -183,6 +181,10 @@ type server struct {
 	decoy   http.Handler
 	dialer  *net.Dialer
 	splits  splitReg
+	domains *domainStore
+	certs   *certSource
+	apikeys *apiKeyStore
+	dataDir string
 }
 
 func cmdRun(args []string) {
@@ -211,6 +213,9 @@ func cmdRun(args []string) {
 	if dataDir == "" {
 		dataDir = filepath.Dir(*cfgPath)
 	}
+	s.dataDir = dataDir
+	s.domains = openDomains(filepath.Join(dataDir, "domains.json"))
+	s.apikeys = openAPIKeys(filepath.Join(dataDir, "apikeys.json"))
 	s.store, err = openStore(filepath.Join(dataDir, "users.json"), cfg.Users)
 	if err != nil {
 		log.Fatal("users.json: ", err)
@@ -241,19 +246,7 @@ func cmdRun(args []string) {
 		s.decoy.ServeHTTP(w, r)
 	})
 
-	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
-	if cfg.CertFile != "" {
-		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		tlsCfg.Certificates = []tls.Certificate{cert}
-		tlsCfg.NextProtos = []string{"h2", "http/1.1"}
-	} else {
-		m := &autocert.Manager{Prompt: autocert.AcceptTOS, HostPolicy: autocert.HostWhitelist(cfg.Domain), Cache: autocert.DirCache(cfg.AutocertDir)}
-		tlsCfg = m.TLSConfig()
-		tlsCfg.MinVersion = tls.VersionTLS12
-	}
+	tlsCfg := s.buildTLS(cfg, dataDir)
 	srv := &http.Server{Handler: mux, TLSConfig: tlsCfg, ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 5 * time.Minute, ErrorLog: log.New(discard{}, "", 0)}
 	http2.ConfigureServer(srv, &http2.Server{
 		MaxUploadBufferPerStream:     1 << 20,
@@ -283,7 +276,7 @@ func cmdRun(args []string) {
 			log.Fatal("listen_http: ", err)
 		}
 		h2s := &http2.Server{MaxUploadBufferPerStream: 1 << 20, MaxUploadBufferPerConnection: 16 << 20, MaxConcurrentStreams: 250, IdleTimeout: 5 * time.Minute}
-		hs = &http.Server{Handler: s.plainHandler(h2s, srv), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 5 * time.Minute, ErrorLog: log.New(discard{}, "", 0)}
+		hs = &http.Server{Handler: s.certs.httpChallenge(s.plainHandler(h2s, srv)), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 5 * time.Minute, ErrorLog: log.New(discard{}, "", 0)}
 		go hs.Serve(hln)
 		log.Printf("plain-HTTP carrier + decoy listening on %s", cfg.ListenHTTP)
 	}

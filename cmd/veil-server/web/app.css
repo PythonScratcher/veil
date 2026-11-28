@@ -88,3 +88,13 @@ a.btn{color:inherit}
 .toprow .tn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toprow .tv{text-align:right;color:var(--mute);font-size:13px}
 .toprow .bar{margin:0}
+
+.maintabs{display:flex;gap:6px;margin:0 0 14px;border-bottom:1px solid var(--line)}
+.maintabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 14px;cursor:pointer;color:var(--mute);margin-bottom:-1px}
+.maintabs button:hover{color:var(--text)}
+.maintabs button.on{color:var(--text);border-bottom-color:var(--accent2)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card h3{margin:0 0 6px;font-size:16px}
+.addrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.addrow .in{flex:1;min-width:150px;width:auto}
+.drow{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}

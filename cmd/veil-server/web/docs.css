@@ -1,0 +1,12 @@
+.docs{max-width:900px}
+.docs h1{font-size:24px}
+.docs h2{font-size:18px;margin-top:28px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.docs h3{font-size:15px;margin-top:18px}
+.docs p{color:var(--mute)}
+.docs p b{color:var(--text)}
+.docs code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:13px}
+.docs table{width:100%;border-collapse:collapse;font-size:14px}
+.docs td{border-bottom:1px solid var(--line);padding:8px 8px;vertical-align:top}
+.docs td:first-child{color:var(--accent);font-weight:600;white-space:nowrap;width:70px}
+.docs td:nth-child(2){font-family:ui-monospace,Consolas,monospace;white-space:nowrap}
+.docs a{color:var(--accent)}
