@@ -33,7 +33,6 @@ for car in tls ws; do
   cp "$BIN/veil-client.exe" "veil_$car.exe"
   t0=$(date +%s%N)
   step "client $car"; "./veil_$car.exe" -c "client_$car.json" -tun > "client_$car.log" 2>&1 < /dev/null &
-  WPID=$(cat /proc/$!/winpid)
   for i in $(seq 1 120); do grep -q "VPN up" "client_$car.log" && break; sleep 0.25; done
   t1=$(date +%s%N)
   grep -q "VPN up" "client_$car.log" && ok "$car: tunnel up in $(( (t1-t0)/1000000 )) ms" || { bad "$car: tunnel up"; cat "client_$car.log"; continue; }
@@ -50,7 +49,10 @@ for car in tls ws; do
   [ -n "$hit" ] && ok "$car: traffic went through the tunnel ($hit)" || { bad "$car: no tunnel traffic"; tail -20 "client_$car.log"; }
   # hard kill (like a crash or Task Manager) -> the guardian must restore the network
   # kill only the VPN process (like a crash); its guardian is a separate process and must survive
-  step "kill pid $WPID"; timeout 30 taskkill //F //PID "$WPID" > /dev/null
+  WPID=$(python -c "import json,os;print(json.load(open(os.path.join(os.environ['APPDATA'],'Veil','session.json')))['pid'])")
+  echo "session.json pid=$WPID; processes:"; tasklist //FI "IMAGENAME eq veil_$car.exe" | tail -n +3
+  step "kill pid $WPID"; timeout 30 taskkill //F //PID "$WPID"
+  sleep 1; echo "after kill:"; tasklist //FI "IMAGENAME eq veil_$car.exe" | tail -n +3
   for i in $(seq 1 20); do [ "$(routes)$(rules)" = 00 ] && break; sleep 1; done
   [ "$(routes)" = 0 ] && ok "$car: guardian removed routes after kill" || bad "$car: routes left after kill ($(routes))"
   [ "$(rules)" = 0 ] && ok "$car: guardian removed firewall rules after kill" || bad "$car: rules left after kill"
