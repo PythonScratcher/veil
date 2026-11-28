@@ -7,7 +7,7 @@ VER=$(tr -d '[:space:]' < VERSION)
 export GOOS=windows GOARCH=amd64 CGO_ENABLED=0
 # icon + manifest + version info resources (.syso files are picked up by go build)
 WINRES=$(command -v go-winres || echo "$(go env GOPATH)/bin/go-winres")
-[ -x "$WINRES" ] || go install github.com/tc-hib/go-winres@v0.3.3
+[ -x "$WINRES" ] || GOOS= GOARCH= go install github.com/tc-hib/go-winres@v0.3.3
 for d in cmd/veil-client cmd/veil-setup; do
   "$WINRES" make --in winres/winres.json --arch amd64 --product-version "$VER.0" --file-version "$VER.0" --out "$d/rsrc"
 done
