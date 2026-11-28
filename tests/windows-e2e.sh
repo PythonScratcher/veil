@@ -9,7 +9,7 @@ bad() { echo "FAIL  $*"; FAIL=1; }
 psq() { timeout 90 powershell -NoProfile -NonInteractive -Command "$1" < /dev/null 2>&1 | tr -d '\r'; }
 step() { echo "[$(date +%T)] $*"; }
 
-LAN=$(psq "(Get-NetIPConfiguration | Where-Object { \$_.IPv4DefaultGateway } | Select-Object -First 1).IPv4Address.IPAddress")
+LAN=$(psq "(Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1 | Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1).IPAddress" | grep -Eo '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
 echo "LAN=$LAN"; [ -n "$LAN" ] || exit 1
 cp "$BIN/wintun.dll" .
 step init
@@ -27,6 +27,10 @@ sleep 3
 routes() { psq "Get-NetRoute -DestinationPrefix 0.0.0.0/1,128.0.0.0/1,::/1,8000::/1 -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count"; }
 rules()  { psq "Get-NetFirewallRule -DisplayName 'Veil DNS guard*' -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count"; }
 
+echo "plain HTTP check: $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://$LAN:18080/)"
+python -c "import json;c=json.load(open('client.json'));c['carrier']='ws';c['listen_socks']='127.0.0.1:19080';c['listen_http']='127.0.0.1:19081';json.dump(c,open('client_wsproxy.json','w'))"
+"$BIN/veil-client.exe" -c client_wsproxy.json > client_wsproxy.log 2>&1 < /dev/null &
+sleep 6; echo "ws proxy-mode log:"; cat client_wsproxy.log; taskkill //F //IM veil-client.exe > /dev/null 2>&1
 for car in tls ws; do
   echo; echo "=========== $car"
   python -c "import json,sys;c=json.load(open('client.json'));c['carrier']='$car';json.dump(c,open('client_$car.json','w'))"
