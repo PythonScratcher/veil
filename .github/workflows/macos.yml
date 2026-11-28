@@ -19,7 +19,7 @@ jobs:
       - name: Build (native)
         run: |
           mkdir -p "$RUNNER_TEMP/bin"
-          go build -o "$RUNNER_TEMP/bin/veil-server" ./cmd/veil-server
+          go build -tags veiltest -o "$RUNNER_TEMP/bin/veil-server" ./cmd/veil-server
           go build -ldflags "-X main.appVersion=ci" -o "$RUNNER_TEMP/bin/veil-client" ./cmd/veil-client
       - name: Tunnel, routes, DNS, cleanup, menu bar
         run: bash tests/macos-e2e.sh "$RUNNER_TEMP/bin"

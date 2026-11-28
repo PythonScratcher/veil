@@ -28,7 +28,7 @@ json.dump(s,open("server.json","w"),indent=1)
 c=json.load(open("client.json")); c["server"]=lan+":18443"; c["ws_addr"]=lan+":18080"
 json.dump(c,open("client.json","w"),indent=1)
 PY
-"$BIN/veil-server" run -c server.json > server.log 2>&1 &
+VEIL_TEST_NO_PUBLIC=1 "$BIN/veil-server" run -c server.json > server.log 2>&1 &
 sleep 3
 kill -0 $! 2>/dev/null && ok "server running" || { bad "server running"; cat server.log; exit 1; }
 

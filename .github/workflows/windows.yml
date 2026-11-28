@@ -18,7 +18,7 @@ jobs:
       - name: Build
         run: |
           mkdir -p "$RUNNER_TEMP/bin"
-          go build -o "$RUNNER_TEMP/bin/veil-server.exe" ./cmd/veil-server
+          go build -tags veiltest -o "$RUNNER_TEMP/bin/veil-server.exe" ./cmd/veil-server
           go build -o "$RUNNER_TEMP/bin/veil-client.exe" ./cmd/veil-client
           cp assets/wintun.dll "$RUNNER_TEMP/bin/"
       - name: Tunnel, routes, firewall, crash cleanup

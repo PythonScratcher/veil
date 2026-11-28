@@ -22,7 +22,7 @@ json.dump(s,open("server.json","w"),indent=1)
 c=json.load(open("client.json")); c["server"]=lan+":18443"; c["ws_addr"]=lan+":18080"
 json.dump(c,open("client.json","w"),indent=1)
 PY
-step server; "$BIN/veil-server.exe" run -c server.json > server.log 2>&1 < /dev/null &
+step server; VEIL_TEST_NO_PUBLIC=1 "$BIN/veil-server.exe" run -c server.json > server.log 2>&1 < /dev/null &
 sleep 3
 routes() { psq "Get-NetRoute -DestinationPrefix 0.0.0.0/1,128.0.0.0/1,::/1,8000::/1 -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count"; }
 rules()  { psq "Get-NetFirewallRule -DisplayName 'Veil DNS guard*' -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count"; }
