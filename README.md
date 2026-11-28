@@ -53,15 +53,15 @@ In the app window, open **Manage server (admin)**, paste the admin panel address
 
 ## Windows app (GUI + tray)
 
-Double-click `veil.exe` (keep `wintun.dll` next to it). Windows asks for Administrator once at launch - needed to create the VPN adapter.
-First run: paste your `client.json` (or choose the file) and press Import. Then press the big power button: **everything on the computer, including DNS, goes through the tunnel** (Full VPN only).
+Double-click `veil.exe` (keep `wintun.dll` next to it), or install with `Veil-Setup.exe`. Windows asks for Administrator once at launch - needed to create the VPN adapter.
+The app is a native window (not a browser page). First run: paste your `client.json` (or "Load file…") and press Add server. Then press the big power button: **everything on the computer, including DNS, goes through the tunnel**.
 
-Veil lives in the system tray (notification area): left-click opens the window, right-click gives Connect / Disconnect, Open Veil, Quit. The icon is grey (off), amber (connecting), purple/green (connected), red (error).
-Closing the window does not disconnect; use Quit in the tray menu (or the Quit link in the window) to disconnect and exit.
-**No app restarts needed.** The instant the tunnel adapter comes up, the client briefly flaps the IPv4/IPv6 bindings on your physical network adapters (half a second, only when something outside the LAN was actually using the network at that moment). That forces every socket on the machine closed at once and fires the network-change notification apps watch for, so Chrome (and everything else, including long-lived QUIC/HTTP3 connections) picks up the tunnel immediately instead of needing to be closed and reopened. The client verifies each binding actually came back on (retrying, then falling back to a full adapter restart if it doesn't) and forces a DHCP renew afterward, since Windows doesn't always do either promptly on its own. If this ever causes trouble on a particular machine's network driver, turn "Instant app switchover" off in Settings - the tunnel works the same either way, you'd just need to close and reopen apps with long-lived connections (Chrome included) once after connecting.
-**Account status is live, not just at connect.** If the server admin disables a key, lets it expire, or it runs out of its data cap while you're already connected, the app notices within about a second - even if you weren't actively browsing anything at the time - and shows a plain-English reason ("this key has been disabled by the server admin", etc.) instead of just quietly dropping out and leaving you guessing.
-**Multiple servers:** use "＋ Add" to import more `client.json` files, pick one from the Server list, rename or remove it under "This server". Each server keeps its own settings. Switch servers while disconnected.
-Settings (transport, ClientHello fragmentation, rotation, cover traffic, DNS) and a log are in the window.
+The window shows the selected server (click it to switch or add servers), the power button, live download/upload speed, your plan (time left, data used of the cap, speed limit, with a Refresh limits link), and collapsible Settings, Manage server (admin) and This server sections. "Open in browser" at the bottom still opens the old browser UI if you ever need it.
+
+Veil lives in the system tray: left-click opens the window, right-click gives Connect / Disconnect, Open Veil, Quit. Closing the window does not disconnect.
+
+**Traffic moves to the tunnel immediately.** Connections that were already open before connecting (browser keep-alives, Chrome's QUIC/HTTP3, calls, games) used to stall for up to a minute: their replies arrived on the VPN adapter addressed to the Wi-Fi/Ethernet address, and Windows dropped them. The VPN adapter now accepts them (weak-host receive), so QUIC flows carry on through the tunnel and old TCP connections are reset at once and reconnect. Route setup also runs in one PowerShell call instead of a dozen. "Instant app switchover" (adapter flapping) is still in Settings but should rarely be needed now.
+**Account status is live, not just at connect** (see Admin web UI).
 `veil-cli.exe` is the same engine for terminals/scripts (`veil-cli.exe -c client.json -tun`, or proxy mode without -tun).
 
 ## Client (Windows, command line)
@@ -125,7 +125,26 @@ HTTPS (TLS) is the default. Others are chosen per server in the client Settings 
 
 `ws_addr` (optional) overrides the plain-HTTP address (default: server host, port 80). `ws` and `poll` also serve the decoy site on port 80.
 
-## Android: QR codes and server management
+## REST API
+
+Everything in the admin panel can be scripted. In the panel open **API**, create an API key (full access or read only, optional expiry) and copy it: it is shown once. The base URL is the panel address plus `api/v1`. Send the key as `Authorization: Bearer veil_…`.
+
+Endpoints cover keys (list/filter, create, bulk create, edit limits, enable/disable, kick, reset usage, new secret, client config and QR per domain, usage history), domains, and server stats. The full reference is linked from the API tab (`docs.html`). API keys can't create other API keys; that is panel-only. Ten bad keys from one address block it for 10 minutes.
+
+```
+curl -k -H "Authorization: Bearer $KEY" -X POST $API/users \
+  -d '{"name":"alice","add_days":30,"data_cap_bytes":50000000000,"rate_mbps":20}'
+```
+
+## Multiple domains
+
+Point any number of domains at the server and add them in the panel under **Domains** (or via the API). Each gets either a real Let's Encrypt certificate (requested automatically, renewed by itself; needs port 443, or 80 with `listen_http`, reachable from the internet) or the server's own certificate. One is the default for new keys; the Config dialog and API let you hand out a key for any domain, so if one name gets blocked you switch clients to another. Keys for Let's Encrypt domains use the real name in TLS and need no pinned certificate. Domains are stored in `domains.json` and certificates in `autocert/` next to `users.json`.
+
+## Android app
+
+The Android app has the same layout as the Windows app: server picker, big power button, live speeds, your plan with Refresh limits, and Settings / Manage server / This server sections.
+
+### QR codes and server management
 
 - Admin panel: a key's **Config** dialog shows a QR code. In the app choose **Add server → Scan QR code**.
 - Manage server (server screen ⋮ menu): sign in with the admin address (including its secret path) and password, then list, create, edit, reset, delete keys, show their QR codes and change the admin password.
